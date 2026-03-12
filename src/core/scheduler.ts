@@ -1,6 +1,7 @@
 import type { Agent } from "./agent";
 import type { Config } from "./config";
 import type { MemoryStore } from "./memory";
+import { getLastTelegramChatId } from "../channels/telegram";
 
 interface ScheduledTask {
   stop: () => void;
@@ -8,6 +9,9 @@ interface ScheduledTask {
 
 let _agent: Agent;
 let _memory: MemoryStore;
+let _telegramBot: {
+  sendMessage: (chatId: number, text: string) => Promise<unknown>;
+} | null = null;
 const scheduledTasks = new Map<string, ScheduledTask>();
 
 export async function startScheduler(agent: Agent, config: Config, memory: MemoryStore) {
@@ -46,6 +50,28 @@ export async function startScheduler(agent: Agent, config: Config, memory: Memor
   console.log("[Scheduler] Started");
 }
 
+export function setTelegramBot(bot: {
+  sendMessage: (chatId: number, text: string) => Promise<unknown>;
+}) {
+  _telegramBot = bot;
+}
+
+async function sendCronMessage(message: string) {
+  const chatId = getLastTelegramChatId();
+  if (_telegramBot && chatId) {
+    try {
+      await _telegramBot.sendMessage(chatId, message);
+      console.log(`[Scheduler] Sent cron message to chat ${chatId}`);
+    } catch (err) {
+      console.error("[Scheduler] Failed to send cron message:", err);
+    }
+  } else {
+    console.log(
+      `[Scheduler] No telegram bot/chat available, skipping message: ${message.slice(0, 50)}...`
+    );
+  }
+}
+
 function registerJob(id: string, schedule: string, prompt: string) {
   if (scheduledTasks.has(id)) {
     console.log(`[Scheduler] Job "${id}" already registered`);
@@ -60,11 +86,14 @@ function registerJob(id: string, schedule: string, prompt: string) {
   const task = nodeCron.schedule(schedule, async () => {
     console.log(`[Scheduler] Running job "${id}": ${prompt.slice(0, 50)}...`);
     try {
-      const result = await _agent.run(prompt, {
+      const cronPrompt = `[CRON JOB] ${prompt}\n\nResponde solo con el resultado directo, sin saludos ni despedidas.`;
+      const result = await _agent.run(cronPrompt, {
         channel: "cron",
         userId: `cron:${id}`
       });
       console.log(`[Scheduler] Job "${id}" done: ${result.slice(0, 100)}...`);
+
+      sendCronMessage(result);
     } catch (err) {
       console.error(`[Scheduler] Job "${id}" failed:`, err);
     }

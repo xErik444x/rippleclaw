@@ -1,6 +1,19 @@
 import type { Agent } from "../core/agent";
 import type { Config } from "../core/config";
 
+let lastChatId: number | null = null;
+let telegramBotInstance: {
+  sendMessage: (chatId: number, text: string) => Promise<unknown>;
+} | null = null;
+
+export function getLastTelegramChatId(): number | null {
+  return lastChatId;
+}
+
+export function getTelegramBot() {
+  return telegramBotInstance;
+}
+
 export async function startTelegram(agent: Agent, config: Config) {
   const tgConfig = config.channels.telegram;
   if (!tgConfig.enabled || !tgConfig.token) {
@@ -11,6 +24,7 @@ export async function startTelegram(agent: Agent, config: Config) {
   // Dynamic import to avoid loading if disabled
   const TelegramBot = (await import("node-telegram-bot-api")).default;
   const bot = new TelegramBot(tgConfig.token, { polling: true });
+  telegramBotInstance = bot;
 
   // Register bot commands with autocomplete
   await bot.setMyCommands([
@@ -26,6 +40,9 @@ export async function startTelegram(agent: Agent, config: Config) {
   console.log("[Telegram] ✅ Bot started, polling...");
 
   bot.on("message", async (msg) => {
+    // Save chatId for cron messages
+    lastChatId = msg.chat.id;
+
     const text = msg.text;
     if (!text) return;
 

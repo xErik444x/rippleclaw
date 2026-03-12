@@ -3,7 +3,7 @@ import { createMemory } from "./core/memory";
 import { Agent } from "./core/agent";
 import { startTelegram } from "./channels/telegram";
 import { startDiscord } from "./channels/discord";
-import { startScheduler, onCronJobChanged } from "./core/scheduler";
+import { startScheduler, onCronJobChanged, setTelegramBot } from "./core/scheduler";
 import { setCronCallback } from "./tools/cron";
 import { cleanupOldLogs, startLogTail } from "./core/log-tail";
 
@@ -162,6 +162,17 @@ async function main() {
   startups.push(startScheduler(agent, config, memory));
 
   await Promise.all(startups);
+
+  // Connect telegram bot to scheduler for cron messages
+  if (config.channels.telegram.enabled) {
+    const { getTelegramBot, getLastTelegramChatId } = await import("./channels/telegram");
+    const bot = getTelegramBot();
+    if (bot) {
+      const { setTelegramBot } = await import("./core/scheduler");
+      setTelegramBot(bot);
+      console.log("[Scheduler] Telegram bot connected for cron messages");
+    }
+  }
 
   // Connect cron tool callback to scheduler
   setCronCallback((id: string) => {

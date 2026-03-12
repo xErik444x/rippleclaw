@@ -44,16 +44,12 @@ export function createCronTool(memory: MemoryStore) {
       switch (args.action) {
         case "list": {
           const jobs = memory.listCronJobs();
-          if (!jobs.length) return "No cron jobs configured";
-          const lines = jobs.map(
-            (j) =>
-              `${j.enabled ? "[X]" : "[ ]"} ${j.id}: ${j.schedule} -> ${j.prompt.slice(0, 50)}${j.prompt.length > 50 ? "..." : ""}`
-          );
-          return `Cron Jobs:\n${lines.join("\n")}`;
+          if (!jobs.length) return "No hay cron jobs.";
+          const lines = jobs.map((j) => `${j.id}: ${j.schedule}`);
+          return `Cron jobs (${jobs.length}):\n${lines.join("\n")}`;
         }
 
         case "add": {
-          if (!args.id) return 'Error: "id" is required for add';
           if (!args.schedule) return 'Error: "schedule" is required for add';
           if (!args.prompt) return 'Error: "prompt" is required for add';
 
@@ -62,8 +58,25 @@ export function createCronTool(memory: MemoryStore) {
             return `Error: Invalid cron schedule "${args.schedule}". Use format: * * * * * (min hour day month weekday)`;
           }
 
+          // Check if prompt looks like a tool result (don't pre-execute tools for cron)
+          const toolResultPatterns = [
+            /\d+°?C/i, // temperature
+            /km\/h/i, // wind speed
+            /%\s*(humedad|humidity)/i, // humidity
+            /\$.*\d+/i, // prices
+            /^\d+\s*(USD|EUR|ARS)/i // currency
+          ];
+
+          const looksLikeResult = toolResultPatterns.some((p) => p.test(args.prompt || ""));
+          if (looksLikeResult) {
+            return `El prompt parece ser un resultado, no una tarea. Para crear un cron que ejecute una tarea (como buscar clima), simplemente describe la tarea. Ejemplo: "Busca el clima en Córdoba" o "Dime la hora en 1 hora".`;
+          }
+
+          // Auto-generate ID if not provided
+          const jobId = args.id?.trim() || `cron_${Date.now()}`;
+
           const job: CronJob = {
-            id: args.id.trim(),
+            id: jobId,
             schedule: args.schedule.trim(),
             prompt: args.prompt,
             enabled: true
@@ -71,7 +84,7 @@ export function createCronTool(memory: MemoryStore) {
 
           memory.saveCronJob(job);
           if (onCronChanged) onCronChanged(job.id);
-          return `Cron job "${job.id}" created: ${job.schedule} -> ${job.prompt.slice(0, 50)}...\nSe ejecutara automaticamente.`;
+          return `Cron job "${job.id}" created. Se ejecutara en ${job.schedule}.`;
         }
 
         case "delete": {
