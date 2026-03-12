@@ -1,0 +1,13 @@
+{
+  "messages": [
+    {
+      "id": 1,
+      "role": "user",
+      "content": "hello",
+      "channel": "cli",
+      "user_id": "u1",
+      "timestamp": 1773327173116
+    }
+  ],
+  "nextId": 2
+}

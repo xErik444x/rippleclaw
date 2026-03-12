@@ -27,7 +27,7 @@ export interface Config {
     cli: { enabled: boolean };
   };
   memory: {
-    backend: "sqlite" | "none";
+    backend: "sqlite" | "json" | "none";
     path: string;
     auto_save: boolean;
   };
@@ -118,12 +118,16 @@ export function createDefaultConfig(): Config {
       cli: { enabled: true }
     },
     memory: {
-      backend: "sqlite",
-      path: join(homedir(), ".rippleclaw", "memory.db"),
+      backend: "json",
+      path: join(homedir(), ".rippleclaw", "memory.json"),
       auto_save: true
     },
     tools: {
-      shell: { enabled: true, allowed_commands: ["git", "npm", "node", "ls", "cat", "grep", "find", "echo", "pwd"], workspace_only: true },
+      shell: {
+        enabled: true,
+        allowed_commands: ["git", "npm", "node", "ls", "cat", "grep", "find", "echo", "pwd"],
+        workspace_only: true
+      },
       file: { enabled: true, workspace_only: true },
       web: { enabled: true, provider: "duckduckgo", safe_search: "moderate" },
       weather: { enabled: true },

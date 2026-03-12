@@ -1,6 +1,5 @@
-import Database from "better-sqlite3";
-import { mkdirSync } from "fs";
-import { dirname } from "path";
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from "fs";
+import { dirname, join } from "path";
 import type { Config } from "./config";
 
 export interface Memory {
@@ -15,10 +14,7 @@ export interface Memory {
 export interface MemoryStore {
   save(role: Memory["role"], content: string, channel: string, userId: string): void;
   recall(channel: string, userId: string, limit?: number): Memory[];
-  search(
-    query: string,
-    options?: { channel?: string; userId?: string; limit?: number }
-  ): Memory[];
+  search(query: string, options?: { channel?: string; userId?: string; limit?: number }): Memory[];
   clear(channel: string, userId: string): void;
   saveNote(key: string, value: string): void;
   getNote(key: string): string | null;
@@ -27,154 +23,137 @@ export interface MemoryStore {
   searchNotes(query: string, limit?: number): { key: string; value: string; updated_at: number }[];
 }
 
-class SQLiteMemory implements MemoryStore {
-  private db: import("better-sqlite3").Database;
+interface NotesData {
+  [key: string]: { value: string; updated_at: number };
+}
 
-  constructor(path: string) {
-    const dir = dirname(path);
+interface MessagesData {
+  messages: Memory[];
+  nextId: number;
+}
+
+class JSONMemory implements MemoryStore {
+  private messagesPath: string;
+  private notesPath: string;
+  private messagesData: MessagesData;
+  private notesData: NotesData;
+
+  constructor(basePath: string) {
+    const dir = dirname(basePath);
     if (dir && dir !== "." && dir !== ":") {
       mkdirSync(dir, { recursive: true });
     }
-    this.db = new Database(path);
-    this.init();
+
+    this.messagesPath = join(dir, "messages.json");
+    this.notesPath = join(dir, "notes.json");
+
+    this.messagesData = this.loadJson(this.messagesPath, { messages: [], nextId: 1 });
+    this.notesData = this.loadJson(this.notesPath, {});
   }
 
-  private init() {
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        role TEXT NOT NULL,
-        content TEXT NOT NULL,
-        channel TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        timestamp INTEGER NOT NULL
-      )
-    `);
-    this.db.exec(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts
-      USING fts5(content, content=messages, content_rowid=id)
-    `);
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_messages_channel_user_timestamp
-      ON messages(channel, user_id, timestamp DESC)
-    `);
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS notes (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at INTEGER NOT NULL
-      )
-    `);
-    this.db.exec(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts
-      USING fts5(key, value)
-    `);
-    // FTS trigger
-    this.db.exec(`
-      CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
-        INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
-      END
-    `);
+  private loadJson<T>(path: string, defaults: T): T {
+    try {
+      if (existsSync(path)) {
+        return JSON.parse(readFileSync(path, "utf-8")) as T;
+      }
+    } catch {}
+    return defaults;
+  }
+
+  private saveMessages() {
+    try {
+      writeFileSync(this.messagesPath, JSON.stringify(this.messagesData, null, 2), "utf-8");
+    } catch (err) {
+      console.error("[Memory] Failed to save messages:", err);
+    }
+  }
+
+  private saveNotes() {
+    try {
+      writeFileSync(this.notesPath, JSON.stringify(this.notesData, null, 2), "utf-8");
+    } catch (err) {
+      console.error("[Memory] Failed to save notes:", err);
+    }
   }
 
   save(role: Memory["role"], content: string, channel: string, userId: string) {
-    this.db
-      .prepare(
-        `INSERT INTO messages (role, content, channel, user_id, timestamp) VALUES (?, ?, ?, ?, ?)`
-      )
-      .run(role, content, channel, userId, Date.now());
+    this.messagesData.messages.push({
+      id: this.messagesData.nextId++,
+      role,
+      content,
+      channel,
+      user_id: userId,
+      timestamp: Date.now()
+    });
+    this.saveMessages();
   }
 
   recall(channel: string, userId: string, limit = 20): Memory[] {
-    return this.db
-      .prepare(
-        `SELECT * FROM messages WHERE channel = ? AND user_id = ? ORDER BY timestamp DESC LIMIT ?`
-      )
-      .all(channel, userId, limit) as Memory[];
+    return this.messagesData.messages
+      .filter((m) => m.channel === channel && m.user_id === userId)
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, limit);
   }
 
   search(
     query: string,
     options: { channel?: string; userId?: string; limit?: number } = {}
   ): Memory[] {
-    const clauses: string[] = [];
-    const params: (string | number)[] = [query];
+    const q = query.toLowerCase();
+    let results = this.messagesData.messages.filter(
+      (m) => m.content.toLowerCase().includes(q) || m.role.toLowerCase().includes(q)
+    );
+
     if (options.channel) {
-      clauses.push("AND messages.channel = ?");
-      params.push(options.channel);
+      results = results.filter((m) => m.channel === options.channel);
     }
     if (options.userId) {
-      clauses.push("AND messages.user_id = ?");
-      params.push(options.userId);
+      results = results.filter((m) => m.user_id === options.userId);
     }
-    const limit = options.limit ?? 5;
-    const stmt = this.db.prepare(`
-      SELECT messages.* FROM messages_fts
-      JOIN messages ON messages.id = messages_fts.rowid
-      WHERE messages_fts MATCH ?
-      ${clauses.join("\n")}
-      ORDER BY messages.timestamp DESC
-      LIMIT ?
-    `);
-    return stmt.all(...params, limit) as Memory[];
+
+    return results.sort((a, b) => b.timestamp - a.timestamp).slice(0, options.limit ?? 5);
   }
 
   clear(channel: string, userId: string) {
-    this.db.prepare(`DELETE FROM messages WHERE channel = ? AND user_id = ?`).run(channel, userId);
+    this.messagesData.messages = this.messagesData.messages.filter(
+      (m) => !(m.channel === channel && m.user_id === userId)
+    );
+    this.saveMessages();
   }
 
   saveNote(key: string, value: string) {
-    const now = Date.now();
-    const insert = this.db.prepare(
-      `INSERT OR REPLACE INTO notes (key, value, updated_at) VALUES (?, ?, ?)`
-    );
-    const deleteFts = this.db.prepare(`DELETE FROM notes_fts WHERE key = ?`);
-    const insertFts = this.db.prepare(`INSERT INTO notes_fts (key, value) VALUES (?, ?)`);
-    const trx = this.db.transaction(() => {
-      insert.run(key, value, now);
-      deleteFts.run(key);
-      insertFts.run(key, value);
-    });
-    trx();
+    this.notesData[key] = { value, updated_at: Date.now() };
+    this.saveNotes();
   }
 
   getNote(key: string): string | null {
-    const row = this.db.prepare(`SELECT value FROM notes WHERE key = ?`).get(key) as {
-      value: string;
-    } | null;
-    return row?.value ?? null;
+    return this.notesData[key]?.value ?? null;
   }
 
   deleteNote(key: string): boolean {
-    const existing = this.getNote(key);
-    if (!existing) return false;
-    const deleteFts = this.db.prepare(`DELETE FROM notes_fts WHERE key = ?`);
-    const deleteMain = this.db.prepare(`DELETE FROM notes WHERE key = ?`);
-    const trx = this.db.transaction(() => {
-      deleteFts.run(key);
-      deleteMain.run(key);
-    });
-    trx();
-    return true;
+    if (key in this.notesData) {
+      delete this.notesData[key];
+      this.saveNotes();
+      return true;
+    }
+    return false;
   }
 
   listNotes(): { key: string; value: string; updated_at: number }[] {
-    return this.db
-      .prepare(`SELECT key, value, updated_at FROM notes ORDER BY updated_at DESC`)
-      .all() as { key: string; value: string; updated_at: number }[];
+    return Object.entries(this.notesData)
+      .map(([key, data]) => ({ key, ...data }))
+      .sort((a, b) => b.updated_at - a.updated_at);
   }
 
   searchNotes(query: string, limit = 5): { key: string; value: string; updated_at: number }[] {
-    return this.db
-      .prepare(
-        `SELECT notes.key, notes.value, notes.updated_at
-         FROM notes
-         JOIN notes_fts ON notes.key = notes_fts.key
-         WHERE notes_fts MATCH ?
-         ORDER BY notes.updated_at DESC
-         LIMIT ?`
+    const q = query.toLowerCase();
+    return Object.entries(this.notesData)
+      .filter(
+        ([key, data]) => key.toLowerCase().includes(q) || data.value.toLowerCase().includes(q)
       )
-      .all(query, limit) as { key: string; value: string; updated_at: number }[];
+      .map(([key, data]) => ({ key, ...data }))
+      .sort((a, b) => b.updated_at - a.updated_at)
+      .slice(0, limit);
   }
 }
 
@@ -183,7 +162,10 @@ class NoopMemory implements MemoryStore {
   recall(): Memory[] {
     return [];
   }
-  search(_query: string, _options?: { channel?: string; userId?: string; limit?: number }): Memory[] {
+  search(
+    _query: string,
+    _options?: { channel?: string; userId?: string; limit?: number }
+  ): Memory[] {
     return [];
   }
   clear() {}
@@ -197,14 +179,17 @@ class NoopMemory implements MemoryStore {
   listNotes(): { key: string; value: string; updated_at: number }[] {
     return [];
   }
-  searchNotes(_query: string, _limit?: number): { key: string; value: string; updated_at: number }[] {
+  searchNotes(
+    _query: string,
+    _limit?: number
+  ): { key: string; value: string; updated_at: number }[] {
     return [];
   }
 }
 
 export function createMemory(config: Config): MemoryStore {
-  if (config.memory.backend === "sqlite") {
-    return new SQLiteMemory(config.memory.path);
+  if (config.memory.backend === "sqlite" || config.memory.backend === "json") {
+    return new JSONMemory(config.memory.path);
   }
   return new NoopMemory();
 }

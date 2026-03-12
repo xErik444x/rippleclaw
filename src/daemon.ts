@@ -1,13 +1,29 @@
 import { createDefaultConfig, loadConfig, resolveConfigPath } from "./core/config";
 import { createMemory } from "./core/memory";
 import { Agent } from "./core/agent";
-import { ensureApiKeys, runSetupMenu } from "./channels/cli-setup";
-import { startCLI } from "./channels/cli";
 import { startTelegram } from "./channels/telegram";
 import { startDiscord } from "./channels/discord";
 import { startScheduler } from "./core/scheduler";
-import { promptStartupMenu } from "./channels/startup-menu";
 import { cleanupOldLogs, startLogTail } from "./core/log-tail";
+
+let runSetupMenu: typeof import("./channels/cli-setup").runSetupMenu | null = null;
+let startCLI: typeof import("./channels/cli").startCLI | null = null;
+let promptStartupMenu: typeof import("./channels/startup-menu").promptStartupMenu | null = null;
+let ensureApiKeys: typeof import("./channels/cli-setup").ensureApiKeys | null = null;
+
+async function loadInteractiveDeps() {
+  if (!runSetupMenu) {
+    const mod = await import("./channels/cli-setup");
+    runSetupMenu = mod.runSetupMenu;
+    ensureApiKeys = mod.ensureApiKeys;
+  }
+  if (!startCLI) {
+    startCLI = (await import("./channels/cli")).startCLI;
+  }
+  if (!promptStartupMenu) {
+    promptStartupMenu = (await import("./channels/startup-menu")).promptStartupMenu;
+  }
+}
 
 const VERSION = "0.1.0";
 
@@ -60,7 +76,8 @@ async function main() {
     if (msg.includes("ENOENT") && process.stdin.isTTY) {
       console.log("⚠️ No config found. Opening setup menu...\n");
       config = createDefaultConfig();
-      await runSetupMenu(config);
+      await loadInteractiveDeps();
+      await runSetupMenu!(config);
       try {
         config = loadConfig();
       } catch {
@@ -79,13 +96,15 @@ async function main() {
 
   // Validate at least one provider has an API key (CLI can bootstrap)
   const activeProviders = config.providers.filter((p) => p.api_key);
-  const canBootstrap =
-    flags.channel === "cli" || (!flags.channel && config.channels.cli.enabled);
+  const canBootstrap = flags.channel === "cli" || (!flags.channel && config.channels.cli.enabled);
   if (activeProviders.length === 0) {
     if (canBootstrap) {
-      await ensureApiKeys(config);
+      await loadInteractiveDeps();
+      await ensureApiKeys!(config);
     } else {
-      console.error("❌ No providers configured with API keys. Edit config.json and add your keys.");
+      console.error(
+        "❌ No providers configured with API keys. Edit config.json and add your keys."
+      );
       process.exit(1);
     }
   }
@@ -111,7 +130,8 @@ async function main() {
   // Decide startup mode
   let channelFilter = flags.channel;
   if (!channelFilter && flags.menu && process.stdin.isTTY) {
-    const choice = await promptStartupMenu();
+    await loadInteractiveDeps();
+    const choice = await promptStartupMenu!();
     if (choice === "exit") process.exit(0);
     if (choice === "cli") channelFilter = "cli";
     if (choice === "telegram") channelFilter = "telegram";
@@ -121,7 +141,8 @@ async function main() {
 
   if (channelFilter === "cli") {
     if (config.channels.cli.enabled || channelFilter === "cli") {
-      await startCLI(agent, config);
+      await loadInteractiveDeps();
+      await startCLI!(agent, config);
       return; // CLI is interactive, blocks here
     }
   }

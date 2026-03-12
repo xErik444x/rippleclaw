@@ -3,9 +3,13 @@
   "version": "0.1.0",
   "description": "Fast, autonomous AI agent infrastructure for low-power devices",
   "main": "dist/daemon.js",
+  "bin": "dist/daemon.js",
   "scripts": {
-    "build": "esbuild src/daemon.ts --platform=node --format=cjs --outdir=dist --sourcemap --bundle --external:better-sqlite3 --external:discord.js --external:node-telegram-bot-api --external:node-cron --external:inquirer",
+    "build": "esbuild src/daemon.ts --platform=node --format=cjs --outdir=dist --sourcemap --bundle",
     "build:tsc": "tsc -p tsconfig.json --incremental false",
+    "build:bin": "npm run build && pkg dist/daemon.js --targets node18-win-x64 --output bin/rippleclaw.exe --public --compress",
+    "build:bin:linux": "npm run build && pkg dist/daemon.js --targets node18-linux-x64 --output bin/rippleclaw --public --compress",
+    "build:bin:win": "npm run build && pkg dist/daemon.js --targets node18-win-x64 --output bin/rippleclaw.exe --public --compress",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/daemon.js",
     "cli": "node dist/daemon.js --channel cli",
@@ -23,7 +27,8 @@
     "discord.js": "^14.16.3",
     "inquirer": "^9.3.7",
     "node-cron": "^3.0.3",
-    "node-telegram-bot-api": "^0.66.0"
+    "node-telegram-bot-api": "^0.66.0",
+    "sql.js": "^1.14.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
@@ -34,6 +39,7 @@
     "@typescript-eslint/parser": "^8.22.0",
     "esbuild": "^0.27.3",
     "eslint": "^9.19.0",
+    "pkg": "^5.8.1",
     "prettier": "^3.4.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",

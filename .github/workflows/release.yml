@@ -1,0 +1,107 @@
+name: Build & Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+            ext: ''
+            script: build:bin:linux
+          - os: windows-latest
+            target: win-x64
+            ext: '.exe'
+            script: build:bin:win
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build binary
+        run: npm run ${{ matrix.script }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rippleclaw-${{ matrix.target }}
+          path: bin/rippleclaw${{ matrix.ext }}
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        id: tag_check
+        run: |
+          TAG=v${{ steps.version.outputs.version }}
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create tag
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          git tag v${{ steps.version.outputs.version }}
+          git push origin v${{ steps.version.outputs.version }}
+
+      - name: Create Release
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: RippleClaw v${{ steps.version.outputs.version }}
+          body: |
+            RippleClaw AI Agent - Pre-built binaries
+
+            ## Downloads
+            - `rippleclaw-linux-x64` - Linux binary
+            - `rippleclaw-win-x64.exe` - Windows binary
+
+            ## Usage
+            1. Download the binary for your OS
+            2. Copy `config.json` next to the binary
+            3. Run: `./rippleclaw` (Linux) or `rippleclaw.exe` (Windows)
+
+            ## Changes in this version
+            See commit history for details.
+          draft: false
+          files: |
+            artifacts/rippleclaw-linux-x64/rippleclaw
+            artifacts/rippleclaw-win-x64/rippleclaw.exe
