@@ -103,6 +103,15 @@ export class Agent {
 
   async run(input: string, ctx: AgentContext): Promise<string> {
     const lower = input.toLowerCase();
+
+    const sanitizeCapturedName = (value: string) => {
+      return value
+        .split(/[,;:]/)[0]
+        .replace(/\b(?:guardad[oa]|guardalo|guardala|recordad[oa]|recordalo|recordala|recuerda|recorda)\b.*$/i, "")
+        .trim()
+        .replace(/[.!?]+$/, "");
+    };
+
     const asksUserName = /como me llamo|mi nombre|cómo me llamo/.test(lower);
     const asksAgentName = /como te llamas|cómo te llamas|tu nombre/.test(lower);
     const isStatusCommand = /^\/?status\b/i.test(input.trim());
@@ -120,16 +129,17 @@ export class Agent {
     const nickChangeMatch =
       input.match(/(?:cambia(?:me)?|cambiame|quiero que te llames?)\s+(.+)/i) ||
       input.match(/(?:quiero|quisiera)\s+que\s+te\s+llames?\s+(.+)/i) ||
-      input.match(/(?:tu\s+nombre\s+es|te\s+llamas)\s+(.+)/i);
+      input.match(/(?:tu\s+nombre\s+es|te\s+llamas)\s+(.+)/i) ||
+      input.match(/quiero que cambies tu nombre a\s+(.+)/i);
     if (nameChangeMatch && nameChangeMatch[1]) {
-      const newName = nameChangeMatch[1].trim().replace(/[.!?]+$/, "");
+      const newName = sanitizeCapturedName(nameChangeMatch[1]);
       if (newName) {
         this.memory.saveNote("name", newName);
         return `Guardé esto en memoria, será útil a futuro. (key: "name")\nTu nombre es ${newName}.`;
       }
     }
     if (nickChangeMatch && nickChangeMatch[1]) {
-      const newNick = nickChangeMatch[1].trim().replace(/[.!?]+$/, "");
+      const newNick = sanitizeCapturedName(nickChangeMatch[1]);
       if (newNick) {
         this.memory.saveNote("nickname", newNick);
         return `Listo. Me llamo ${newNick}.`;
