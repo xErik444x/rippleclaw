@@ -9,26 +9,41 @@ Fast, autonomous AI agent optimized for low-power devices (Orange Pi, Raspberry 
 
 ## Tabla de Contenidos
 
-1. [Caracteristicas](#-caracteristicas)
-2. [Inicio Rapido](#-inicio-rapido)
-3. [Instalacion](#-instalacion)
-   - [Desde codigo fuente](#desde-codigo-fuente)
-   - [Binario precompilado](#binario-precompilado)
-4. [Configuracion](#-configuracion)
-5. [Canales](#-canales)
-   - [Telegram](#telegram)
-   - [Discord](#discord)
-   - [CLI](#cli)
-6. [Comandos](#-comandos)
-7. [Memoria y Contexto](#-memoria-y-contexto)
-8. [Build Manual](#-build-manual)
-   - [Windows](#windows)
-   - [Linux x64](#linux-x64)
-   - [Linux ARM64](#linux-arm64-orange-pi-raspberry-pi)
-9. [Cron Jobs](#-cron-jobs)
-10. [Service Linux](#-service-linux)
-11. [Desarrollo](#-desarrollo)
-12. [Seguridad](#-seguridad)
+- [RippleClaw](#rippleclaw)
+  - [Tabla de Contenidos](#tabla-de-contenidos)
+  - [Caracteristicas](#caracteristicas)
+  - [Inicio Rapido](#inicio-rapido)
+    - [Opción 1: Binario (más rápido)](#opción-1-binario-más-rápido)
+    - [Opción 2: Desde código fuente](#opción-2-desde-código-fuente)
+  - [Instalacion](#instalacion)
+    - [Desde código fuente](#desde-código-fuente)
+    - [Binario precompilado](#binario-precompilado)
+  - [Configuracion](#configuracion)
+    - [Ejemplo completo](#ejemplo-completo)
+    - [Notas](#notas)
+  - [Canales](#canales)
+    - [Telegram](#telegram)
+    - [Discord](#discord)
+    - [CLI](#cli)
+  - [Comandos](#comandos)
+  - [Memoria y Contexto](#memoria-y-contexto)
+    - [Comandos de memoria (desde el chat)](#comandos-de-memoria-desde-el-chat)
+    - [Compresión automática](#compresión-automática)
+  - [Build Manual](#build-manual)
+    - [Windows](#windows)
+    - [Linux x64](#linux-x64)
+    - [Linux ARM64 (Orange Pi, Raspberry Pi)](#linux-arm64-orange-pi-raspberry-pi)
+    - [GitHub Actions](#github-actions)
+  - [Cron Jobs](#cron-jobs)
+    - [Comandos desde el chat](#comandos-desde-el-chat)
+    - [Formato de schedule (cron)](#formato-de-schedule-cron)
+    - [Configuracion estatica (alternativo)](#configuracion-estatica-alternativo)
+  - [Service Linux](#service-linux)
+  - [Desarrollo](#desarrollo)
+    - [Estructura del proyecto](#estructura-del-proyecto)
+  - [Seguridad](#seguridad)
+    - [`.gitignore` recomendado](#gitignore-recomendado)
+  - [📄 Licencia](#-licencia)
 
 ---
 
@@ -312,12 +327,9 @@ npm run build:bin:linux-x64
 ### Linux ARM64 (Orange Pi, Raspberry Pi)
 
 ```bash
-# Opción 1: En la misma Orange Pi (recomendado)
 npm install
 npm run build:bin:linux-arm64
 
-# Opción 2: GitHub Actions (automático en release)
-# Push a main y se compila automáticamente
 ```
 
 ### GitHub Actions
@@ -335,7 +347,42 @@ Se ejecuta en push a `main` y crea un release con los binarios.
 
 ## Cron Jobs
 
-En `config.json`:
+Los cron jobs se gestionan desde el chat usando la herramienta `cron`. Los jobs se guardan en memoria y persisten entre sesiones.
+
+### Comandos desde el chat
+
+```
+# Listar todos los cron jobs
+"列出 mis cron jobs" o usa la tool cron action=list
+
+# Crear un cron job
+"Agrega un cron job llamado resumen-diario a las 9am que diga Dame un resumen de lo que trabajaste ayer"
+
+# Eliminar un cron job
+"Borra el cron job resumen-diario"
+
+# Habilitar/deshabilitar
+"Habilita el cron job resumen-diario"
+"Deshabilita el cron job resumen-diario"
+
+# Ver un job especifico
+"Muestra el cron job recordatorio"
+```
+
+### Formato de schedule (cron)
+
+| Expresion      | Descripcion                |
+| -------------- | -------------------------- |
+| `0 9 * * *`    | Todos los dias a las 9:00  |
+| `0 9 * * 1-5`  | Lunes a viernes a las 9:00 |
+| `*/15 * * * *` | Cada 15 minutos            |
+| `0 * * * *`    | Cada hora                  |
+
+Formatos: `minuto hora dia mes dia_semana`
+
+### Configuracion estatica (alternativo)
+
+Tambien puedes definir jobs estaticos en `config.json`:
 
 ```json
 "cron": {
@@ -344,22 +391,11 @@ En `config.json`:
     {
       "id": "resumen-diario",
       "schedule": "0 9 * * *",
-      "prompt": "Dame un resumen de lo que trabajaste ayer y sugerí tareas para hoy"
-    },
-    {
-      "id": "recordatorio",
-      "schedule": "0 18 * * 1-5",
-      "prompt": "Recordá que a las 9am tengo que trabajar"
+      "prompt": "Dame un resumen de lo que trabajaste ayer"
     }
   ]
 }
 ```
-
-Formatos de schedule (cron):
-
-- `0 9 * * *` - Todos los días a las 9:00
-- `0 9 * * 1-5` - Lunes a viernes a las 9:00
-- `*/15 * * * *` - Cada 15 minutos
 
 ---
 

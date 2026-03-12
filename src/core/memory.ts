@@ -11,6 +11,14 @@ export interface Memory {
   timestamp: number;
 }
 
+export interface CronJob {
+  id: string;
+  schedule: string;
+  prompt: string;
+  enabled: boolean;
+  lastRun?: number;
+}
+
 export interface MemoryStore {
   save(role: Memory["role"], content: string, channel: string, userId: string): void;
   recall(channel: string, userId: string, limit?: number): Memory[];
@@ -21,6 +29,11 @@ export interface MemoryStore {
   deleteNote(key: string): boolean;
   listNotes(): { key: string; value: string; updated_at: number }[];
   searchNotes(query: string, limit?: number): { key: string; value: string; updated_at: number }[];
+  saveCronJob(job: CronJob): void;
+  getCronJob(id: string): CronJob | null;
+  deleteCronJob(id: string): boolean;
+  listCronJobs(): CronJob[];
+  toggleCronJob(id: string, enabled: boolean): boolean;
 }
 
 interface NotesData {
@@ -32,11 +45,17 @@ interface MessagesData {
   nextId: number;
 }
 
+interface CronJobsData {
+  [id: string]: CronJob;
+}
+
 class JSONMemory implements MemoryStore {
   private messagesPath: string;
   private notesPath: string;
+  private cronPath: string;
   private messagesData: MessagesData;
   private notesData: NotesData;
+  private cronData: CronJobsData;
 
   constructor(basePath: string) {
     const dir = dirname(basePath);
@@ -46,9 +65,11 @@ class JSONMemory implements MemoryStore {
 
     this.messagesPath = join(dir, "messages.json");
     this.notesPath = join(dir, "notes.json");
+    this.cronPath = join(dir, "cron.json");
 
     this.messagesData = this.loadJson(this.messagesPath, { messages: [], nextId: 1 });
     this.notesData = this.loadJson(this.notesPath, {});
+    this.cronData = this.loadJson(this.cronPath, {});
   }
 
   private loadJson<T>(path: string, defaults: T): T {
@@ -155,6 +176,45 @@ class JSONMemory implements MemoryStore {
       .sort((a, b) => b.updated_at - a.updated_at)
       .slice(0, limit);
   }
+
+  saveCronJob(job: CronJob): void {
+    this.cronData[job.id] = { ...job, enabled: job.enabled ?? true };
+    this.saveCron();
+  }
+
+  getCronJob(id: string): CronJob | null {
+    return this.cronData[id] || null;
+  }
+
+  deleteCronJob(id: string): boolean {
+    if (this.cronData[id]) {
+      delete this.cronData[id];
+      this.saveCron();
+      return true;
+    }
+    return false;
+  }
+
+  listCronJobs(): CronJob[] {
+    return Object.values(this.cronData);
+  }
+
+  toggleCronJob(id: string, enabled: boolean): boolean {
+    if (this.cronData[id]) {
+      this.cronData[id].enabled = enabled;
+      this.saveCron();
+      return true;
+    }
+    return false;
+  }
+
+  private saveCron() {
+    try {
+      writeFileSync(this.cronPath, JSON.stringify(this.cronData, null, 2), "utf-8");
+    } catch (err) {
+      console.error("[Memory] Failed to save cron:", err);
+    }
+  }
 }
 
 class NoopMemory implements MemoryStore {
@@ -184,6 +244,19 @@ class NoopMemory implements MemoryStore {
     _limit?: number
   ): { key: string; value: string; updated_at: number }[] {
     return [];
+  }
+  saveCronJob(_job: CronJob): void {}
+  getCronJob(_id: string): CronJob | null {
+    return null;
+  }
+  deleteCronJob(_id: string): boolean {
+    return false;
+  }
+  listCronJobs(): CronJob[] {
+    return [];
+  }
+  toggleCronJob(_id: string, _enabled: boolean): boolean {
+    return false;
   }
 }
 

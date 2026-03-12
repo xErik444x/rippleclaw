@@ -8,6 +8,7 @@ import {
   createShellTool,
   createFileTool,
   createMemoryTool,
+  createCronTool,
   createModelTool,
   createEnvTool,
   createWebTool,
@@ -48,6 +49,7 @@ export class Agent {
     const shellTool = createShellTool(config);
     const fileTool = createFileTool(config);
     const memoryTool = createMemoryTool(memory);
+    const cronTool = createCronTool(memory);
     const modelTool = createModelTool(config);
     const envTool = createEnvTool(config);
     const webTool = createWebTool(config);
@@ -76,6 +78,19 @@ export class Agent {
               value?: string;
               query?: string;
               limit?: number;
+            }
+          )
+      },
+      {
+        definition: cronTool.definition,
+        execute: (args) =>
+          cronTool.execute(
+            args as {
+              action: "list" | "add" | "delete" | "toggle" | "run";
+              id?: string;
+              schedule?: string;
+              prompt?: string;
+              enabled?: boolean;
             }
           )
       },
@@ -342,6 +357,7 @@ Rules:
         ...(this.config.tools.weather?.enabled ? ["weather"] : []),
         ...(this.config.tools.summarize?.enabled ? ["summarize"] : []),
         "remember",
+        "cron",
         "model",
         "env"
       ]);

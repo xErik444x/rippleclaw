@@ -3,7 +3,8 @@ import { createMemory } from "./core/memory";
 import { Agent } from "./core/agent";
 import { startTelegram } from "./channels/telegram";
 import { startDiscord } from "./channels/discord";
-import { startScheduler } from "./core/scheduler";
+import { startScheduler, onCronJobChanged } from "./core/scheduler";
+import { setCronCallback } from "./tools/cron";
 import { cleanupOldLogs, startLogTail } from "./core/log-tail";
 
 let runSetupMenu: typeof import("./channels/cli-setup").runSetupMenu | null = null;
@@ -158,9 +159,14 @@ async function main() {
     startups.push(startDiscord(agent, config));
   }
 
-  startups.push(startScheduler(agent, config));
+  startups.push(startScheduler(agent, config, memory));
 
   await Promise.all(startups);
+
+  // Connect cron tool callback to scheduler
+  setCronCallback((id: string) => {
+    onCronJobChanged(id);
+  });
 
   console.log("\n🌊 RippleClaw daemon running. Ctrl+C to stop.\n");
   startLogTail(config);

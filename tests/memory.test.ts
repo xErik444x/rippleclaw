@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import { createMemory } from "../src/core/memory";
 import type { Config } from "../src/core/config";
+import { join } from "path";
+import { rmSync, mkdirSync, existsSync } from "fs";
 
-function makeConfig(): Config {
+const testDir = join(__dirname, "..", ".test-data");
+
+function makeConfig(name: string): Config {
   return {
     name: "RippleClaw",
     version: "0.1.0",
@@ -18,24 +22,32 @@ function makeConfig(): Config {
       discord: { enabled: false, token: "", allowed_users: [] },
       cli: { enabled: false }
     },
-    memory: { backend: "sqlite", path: ":memory:", auto_save: false },
+    memory: { backend: "json", path: join(testDir, `${name}.json`), auto_save: false },
     tools: {
       shell: { enabled: false, allowed_commands: [], workspace_only: true },
-      file: { enabled: false, workspace_only: true }
+      file: { enabled: false, workspace_only: true },
+      web: { enabled: false },
+      weather: { enabled: false },
+      summarize: { enabled: false }
     },
     cron: { enabled: false, jobs: [] }
   };
 }
 
-describe("SQLiteMemory", () => {
+describe("JSONMemory", () => {
+  beforeEach(() => {
+    rmSync(testDir, { recursive: true, force: true });
+    mkdirSync(testDir, { recursive: true });
+  });
+
   it("saves and retrieves notes", () => {
-    const memory = createMemory(makeConfig());
+    const memory = createMemory(makeConfig("notes"));
     memory.saveNote("key", "value");
     expect(memory.getNote("key")).toBe("value");
   });
 
   it("stores and recalls messages", () => {
-    const memory = createMemory(makeConfig());
+    const memory = createMemory(makeConfig("messages"));
     memory.save("user", "hello", "cli", "u1");
     const items = memory.recall("cli", "u1", 5);
     expect(items.length).toBe(1);

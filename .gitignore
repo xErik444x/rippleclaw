@@ -16,3 +16,6 @@ Thumbs.db
 bin/
 
 daemon
+messages.json
+notes.json
+.test-data/
