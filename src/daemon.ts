@@ -1,4 +1,4 @@
-import { createDefaultConfig, loadConfig } from "./core/config";
+import { createDefaultConfig, loadConfig, resolveConfigPath } from "./core/config";
 import { createMemory } from "./core/memory";
 import { Agent } from "./core/agent";
 import { ensureApiKeys, runSetupMenu } from "./channels/cli-setup";
@@ -61,12 +61,21 @@ async function main() {
       console.log("⚠️ No config found. Opening setup menu...\n");
       config = createDefaultConfig();
       await runSetupMenu(config);
+      try {
+        config = loadConfig();
+      } catch {
+        console.error("❌ Setup finished without saving a config.");
+        console.error(`Expected config at: ${resolveConfigPath()}`);
+        process.exit(1);
+      }
     } else {
       console.error("❌ Failed to load config:", err);
+      console.error(`Expected config at: ${resolveConfigPath()}`);
       console.error("Make sure config.json exists or run setup.");
       process.exit(1);
     }
   }
+  console.log(`✅ Config: ${resolveConfigPath()}`);
 
   // Validate at least one provider has an API key (CLI can bootstrap)
   const activeProviders = config.providers.filter((p) => p.api_key);

@@ -1,19 +1,13 @@
-import { existsSync, mkdirSync, writeFileSync } from "fs";
-import { dirname, join } from "path";
-import { homedir } from "os";
+import { mkdirSync, writeFileSync } from "fs";
+import { dirname } from "path";
 import type { Config, ProviderConfig } from "../core/config";
+import { resolveConfigPath } from "../core/config";
 
 type ModelInfo = {
   id: string;
   name?: string;
   contextLength?: number;
 };
-
-function resolveConfigPath(): string {
-  if (existsSync("config.json")) return "config.json";
-  if (process.env.RIPPLECLAW_CONFIG) return process.env.RIPPLECLAW_CONFIG;
-  return join(homedir(), ".rippleclaw", "config.json");
-}
 
 async function getInquirer() {
   const mod = await import("inquirer");

@@ -46,6 +46,11 @@ export interface Config {
 
 let _config: Config | null = null;
 
+export function resolveConfigPath(): string {
+  if (process.env.RIPPLECLAW_CONFIG) return process.env.RIPPLECLAW_CONFIG;
+  return join(homedir(), ".rippleclaw", "config.json");
+}
+
 export function createDefaultConfig(): Config {
   return {
     name: "RippleClaw",
@@ -104,7 +109,7 @@ export function loadConfig(configPath?: string): Config {
   if (_config) return _config;
 
   const home = process.env.HOME || homedir();
-  const path = configPath || process.env.RIPPLECLAW_CONFIG || join(home, ".rippleclaw", "config.json");
+  const path = configPath || resolveConfigPath();
 
   // Try local config.json first (dev mode)
   let raw: string;
