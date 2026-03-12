@@ -1,5 +1,5 @@
-import { spawnSync } from "child_process";
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from "fs";
+import { spawn } from "child_process";
+import { promises as fs } from "fs";
 import { join, resolve, relative, isAbsolute, dirname } from "path";
 import type { Config } from "../core/config";
 import type { Tool } from "../providers/base";
@@ -113,27 +113,56 @@ export function createShellTool(config: Config) {
 
       const shellCmd = isWin ? "cmd.exe" : "bash";
       const shellArgs = isWin ? ["/d", "/s", "/c", command] : ["-c", command];
+      const maxBuffer = 1024 * 1024;
 
-      const result = spawnSync(shellCmd, shellArgs, {
-        cwd: workdir,
-        timeout: 30000,
-        encoding: "utf-8",
-        maxBuffer: 1024 * 1024
+      const output = await new Promise<string>((resolveOutput) => {
+        const child = spawn(shellCmd, shellArgs, {
+          cwd: workdir,
+          stdio: ["ignore", "pipe", "pipe"]
+        });
+
+        let stdout = "";
+        let stderr = "";
+        let exceeded = false;
+
+        const onData = (chunk: Buffer, target: "stdout" | "stderr") => {
+          const text = chunk.toString("utf-8");
+          if (target === "stdout") stdout += text;
+          else stderr += text;
+          if (stdout.length + stderr.length > maxBuffer) {
+            exceeded = true;
+            child.kill();
+          }
+        };
+
+        const timeout = setTimeout(() => {
+          child.kill();
+        }, 30000);
+
+        child.stdout?.on("data", (chunk) => onData(chunk as Buffer, "stdout"));
+        child.stderr?.on("data", (chunk) => onData(chunk as Buffer, "stderr"));
+
+        child.on("error", (err) => {
+          clearTimeout(timeout);
+          resolveOutput(`Error: ${err.message}`);
+        });
+
+        child.on("close", (code) => {
+          clearTimeout(timeout);
+          if (exceeded) {
+            resolveOutput("Error: command output exceeded max buffer");
+            return;
+          }
+          const out = [stdout.trim(), stderr.trim()].filter(Boolean).join("\n");
+          resolveOutput(out || `(exit code: ${code ?? 0})`);
+        });
       });
-
-      if (result.error) {
-        return `Error: ${result.error.message}`;
-      }
-
-      const stdout = result.stdout?.trim() || "";
-      const stderr = result.stderr?.trim() || "";
-      const output = [stdout, stderr].filter(Boolean).join("\n");
 
       let finalOut = output;
       if (isWin && normalizedCmd === "pwd") {
         finalOut = output.replace(/\//g, "\\");
       }
-      return finalOut || `(exit code: ${result.status ?? 0})`;
+      return finalOut;
     }
   };
 }
@@ -172,8 +201,12 @@ export function createFileTool(config: Config) {
         if (config.tools.file.workspace_only && !isInsideWorkspace(resolvedRoot, config.workspace)) {
           return `Error: path "." is outside the workspace`;
         }
-        if (!existsSync(resolvedRoot)) return `Error: directory not found: .`;
-        const entries = readdirSync(resolvedRoot, { withFileTypes: true });
+        try {
+          await fs.access(resolvedRoot);
+        } catch {
+          return `Error: directory not found: .`;
+        }
+        const entries = await fs.readdir(resolvedRoot, { withFileTypes: true });
         return entries.map((e) => `${e.isDirectory() ? "📁" : "📄"} ${e.name}`).join("\n");
       }
 
@@ -189,19 +222,27 @@ export function createFileTool(config: Config) {
 
       switch (action) {
         case "read": {
-          if (!existsSync(resolved)) return `Error: file not found: ${filePath}`;
-          const text = readFileSync(resolved, "utf-8");
+          try {
+            await fs.access(resolved);
+          } catch {
+            return `Error: file not found: ${filePath}`;
+          }
+          const text = await fs.readFile(resolved, "utf-8");
           return text.length > 8000 ? text.slice(0, 8000) + "\n...(truncated)" : text;
         }
         case "write": {
           if (content === undefined) return "Error: content is required for write action";
-          mkdirSync(dirname(resolved), { recursive: true });
-          writeFileSync(resolved, content, "utf-8");
+          await fs.mkdir(dirname(resolved), { recursive: true });
+          await fs.writeFile(resolved, content, "utf-8");
           return `Written ${content.length} bytes to ${filePath}`;
         }
         case "list": {
-          if (!existsSync(resolved)) return `Error: directory not found: ${filePath}`;
-          const entries = readdirSync(resolved, { withFileTypes: true });
+          try {
+            await fs.access(resolved);
+          } catch {
+            return `Error: directory not found: ${filePath}`;
+          }
+          const entries = await fs.readdir(resolved, { withFileTypes: true });
           return entries.map((e) => `${e.isDirectory() ? "📁" : "📄"} ${e.name}`).join("\n");
         }
         default:

@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, statSync } from "fs";
+import { existsSync, readFileSync, statSync, createReadStream } from "fs";
+import { promises as fsp } from "fs";
 import { join, resolve } from "path";
 import type { Config } from "./config";
 
@@ -16,6 +17,27 @@ function lastLines(text: string, count: number): string {
 
 export function resolveToolLogPath(config: Config): string {
   return join(resolve(config.workspace), ".rippleclaw", "logs", "tool.log");
+}
+
+export async function cleanupOldLogs(config: Config, maxAgeMs = 24 * 60 * 60 * 1000) {
+  const dir = join(resolve(config.workspace), ".rippleclaw", "logs");
+  try {
+    const entries = await fsp.readdir(dir, { withFileTypes: true });
+    const now = Date.now();
+    await Promise.all(
+      entries
+        .filter((e) => e.isFile())
+        .map(async (e) => {
+          const full = join(dir, e.name);
+          const stat = await fsp.stat(full);
+          if (now - stat.mtimeMs > maxAgeMs) {
+            await fsp.unlink(full);
+          }
+        })
+    );
+  } catch {
+    // ignore cleanup errors
+  }
 }
 
 export function startLogTail(config: Config, options: TailOptions = {}) {
@@ -40,9 +62,21 @@ export function startLogTail(config: Config, options: TailOptions = {}) {
     if (!existsSync(path)) return;
     const stat = statSync(path);
     if (stat.size <= lastSize) return;
-    const data = readFileSync(path, "utf-8").slice(lastSize);
-    lastSize = stat.size;
-    const cleaned = data.trim();
-    if (cleaned) console.log(cleaned);
+
+    const stream = createReadStream(path, {
+      start: lastSize,
+      end: stat.size - 1,
+      encoding: "utf-8"
+    });
+
+    let data = "";
+    stream.on("data", (chunk) => {
+      data += chunk;
+    });
+    stream.on("end", () => {
+      lastSize = stat.size;
+      const cleaned = data.trim();
+      if (cleaned) console.log(cleaned);
+    });
   }, intervalMs);
 }

@@ -2,6 +2,7 @@ import type { Config } from "./config";
 import type { MemoryStore } from "./memory";
 import { chat, parseToolCalls, type Message, type Tool } from "../providers/base";
 import { logToolEvent } from "./logger";
+import { Semaphore } from "./semaphore";
 import {
   createShellTool,
   createFileTool,
@@ -24,6 +25,7 @@ export interface AgentContext {
 }
 
 export class Agent {
+  private static toolSemaphore: Semaphore | null = null;
   private config: Config;
   private memory: MemoryStore;
   private tools: {
@@ -34,6 +36,10 @@ export class Agent {
   constructor(config: Config, memory: MemoryStore) {
     this.config = config;
     this.memory = memory;
+    if (!Agent.toolSemaphore) {
+      const max = config.runtime?.max_tool_concurrency ?? 1;
+      Agent.toolSemaphore = new Semaphore(Math.max(1, max));
+    }
 
     const shellTool = createShellTool(config);
     const fileTool = createFileTool(config);
@@ -117,10 +123,13 @@ export class Agent {
     const contextCfg = this.config.context || { max_tokens: 16000, compress_threshold: 0.85 };
     const threshold = Math.floor(contextCfg.max_tokens * (contextCfg.compress_threshold || 0.85));
     const summaryKey = `context_summary:${ctx.channel}:${ctx.userId}`;
+    const summaryLastIdKey = `context_summary_last_id:${ctx.channel}:${ctx.userId}`;
     let summary = this.memory.getNote(summaryKey);
+    const lastSummaryIdRaw = this.memory.getNote(summaryLastIdKey);
+    const lastSummaryId = lastSummaryIdRaw ? Number(lastSummaryIdRaw) : 0;
 
     const recallAll = this.memory.recall(ctx.channel, ctx.userId, 50).reverse();
-    const recallRecent = this.memory.recall(ctx.channel, ctx.userId, 15).reverse();
+    const recallRecent = recallAll.slice(-15);
 
     const runtimeInfo = `Runtime:
 os=${process.platform === "win32" ? "Windows" : process.platform === "darwin" ? "macOS" : "Linux"}
@@ -163,7 +172,8 @@ Rules:
     const shouldCompress = wantsCompress || estimated >= threshold;
     if (shouldCompress && recallAll.length > 0) {
       try {
-        const convo = recallAll
+        const delta = recallAll.filter((m) => (m.id ?? 0) > lastSummaryId);
+        const convo = (delta.length > 0 ? delta : recallAll)
           .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
           .join("\n");
         const summarizePrompt = [
@@ -189,6 +199,8 @@ Rules:
         );
         summary = summaryResp.content.trim() || summary || "";
         if (summary) this.memory.saveNote(summaryKey, summary);
+        const newestId = recallAll[recallAll.length - 1]?.id ?? 0;
+        if (newestId > 0) this.memory.saveNote(summaryLastIdKey, String(newestId));
       } catch {
         // Keep previous summary if summarization fails
       }
@@ -255,7 +267,13 @@ Rules:
         }
         try {
           console.log(`[RippleClaw] 🔧 Tool: ${call.name}`, call.arguments);
-          const result = await tool.execute(call.arguments as Record<string, unknown>);
+          const release = await Agent.toolSemaphore!.acquire();
+          let result = "";
+          try {
+            result = await tool.execute(call.arguments as Record<string, unknown>);
+          } finally {
+            release();
+          }
           toolResults.push(`[${call.name}]: ${result}`);
           logToolEvent(this.config, ctx, {
             tool: call.name,

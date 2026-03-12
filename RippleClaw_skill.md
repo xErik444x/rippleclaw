@@ -8,7 +8,6 @@ Version actual: 0.1.0
 Hardware objetivo: Orange Pi Lite (Allwinner H3, 512MB-1GB RAM, ARM Cortex-A7)
 Runtime: Node.js (SQLite local con better-sqlite3)
 Lenguaje: TypeScript estricto
-Repositorio local (dev): C:\Users\erik\_\Documents\programacion\RippleClaw
 Config activa (orden de carga): ./config.json -> $RIPPLECLAW_CONFIG -> ~/.rippleclaw/config.json
 
 ---
@@ -218,7 +217,7 @@ model - Cambio de modelo en runtime:
 {
   "name": "RippleClaw",
   "version": "0.1.0",
-  "workspace": "/home/erik/programacion/",
+  "workspace": "~/.rippleclaw/workspace",
   "default_provider": "openai",
   "default_model": "gpt-4o",
   "context": {
@@ -241,6 +240,7 @@ model - Cambio de modelo en runtime:
     "shell": { "enabled": true, "allowed_commands": ["git", "npm", "node"], "workspace_only": true },
     "file":  { "enabled": true, "workspace_only": true }
   },
+  "runtime": { "max_tool_concurrency": 1 },
   "cron": {
     "enabled": true,
     "jobs": [

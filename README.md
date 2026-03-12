@@ -85,6 +85,7 @@ Example:
     },
     "file": { "enabled": true, "workspace_only": true }
   },
+  "runtime": { "max_tool_concurrency": 1 },
   "cron": {
     "enabled": true,
     "jobs": []

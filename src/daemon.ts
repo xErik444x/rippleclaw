@@ -1,13 +1,13 @@
-import { loadConfig } from "./core/config";
+import { createDefaultConfig, loadConfig } from "./core/config";
 import { createMemory } from "./core/memory";
 import { Agent } from "./core/agent";
-import { ensureApiKeys } from "./channels/cli-setup";
+import { ensureApiKeys, runSetupMenu } from "./channels/cli-setup";
 import { startCLI } from "./channels/cli";
 import { startTelegram } from "./channels/telegram";
 import { startDiscord } from "./channels/discord";
 import { startScheduler } from "./core/scheduler";
 import { promptStartupMenu } from "./channels/startup-menu";
-import { startLogTail } from "./core/log-tail";
+import { cleanupOldLogs, startLogTail } from "./core/log-tail";
 
 const VERSION = "0.1.0";
 
@@ -56,9 +56,16 @@ async function main() {
   try {
     config = loadConfig();
   } catch (err) {
-    console.error("❌ Failed to load config:", err);
-    console.error("Make sure config.json exists or run: rippleclaw onboard");
-    process.exit(1);
+    const msg = String(err);
+    if (msg.includes("ENOENT") && process.stdin.isTTY) {
+      console.log("⚠️ No config found. Opening setup menu...\n");
+      config = createDefaultConfig();
+      await runSetupMenu(config);
+    } else {
+      console.error("❌ Failed to load config:", err);
+      console.error("Make sure config.json exists or run setup.");
+      process.exit(1);
+    }
   }
 
   // Validate at least one provider has an API key (CLI can bootstrap)
@@ -85,6 +92,9 @@ async function main() {
   // Init memory
   const memory = createMemory(config);
   console.log(`✅ Memory: ${config.memory.backend} at ${config.memory.path}`);
+
+  // Cleanup old logs (>1d)
+  await cleanupOldLogs(config);
 
   // Init agent
   const agent = new Agent(config, memory);
