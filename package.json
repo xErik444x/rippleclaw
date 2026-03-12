@@ -15,7 +15,8 @@
     "format": "prettier -w .",
     "test": "vitest run",
     "service:install": "bash scripts/install-service.sh",
-    "service:uninstall": "bash scripts/uninstall-service.sh"
+    "service:uninstall": "bash scripts/uninstall-service.sh",
+    "service:restart": "sudo systemctl restart rippleclaw"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",

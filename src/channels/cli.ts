@@ -40,7 +40,7 @@ export async function startCLI(agent: Agent, config: Config) {
     }
 
     if (input === "/help") {
-      console.log("Commands: /clear, /exit, /quit, /setup");
+      console.log("Commands: /clear, /exit, /quit, /setup, /restart");
       rl.prompt();
       return;
     }
@@ -48,6 +48,17 @@ export async function startCLI(agent: Agent, config: Config) {
     try {
       if (input === "/setup") {
         await runSetupMenu(config);
+        rl.prompt();
+        return;
+      }
+      if (input === "/restart") {
+        try {
+          const { execSync } = await import("child_process");
+          execSync("systemctl restart rippleclaw", { stdio: "inherit" });
+          console.log("\n✅ Servicio reiniciado.");
+        } catch (err) {
+          console.error(`\n❌ No pude reiniciar el servicio: ${err}`);
+        }
         rl.prompt();
         return;
       }
