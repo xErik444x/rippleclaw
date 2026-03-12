@@ -255,7 +255,9 @@ model - Cambio de modelo en runtime:
 ## Comandos de desarrollo
 
 ```bash
-npm run build              # Build TS a dist/
+npm run build              # Build rápido (esbuild) a dist/
+npm run build:tsc          # Typecheck completo (tsc)
+npm run typecheck          # Solo typecheck (sin build)
 npm start                  # Daemon (canales configurados)
 npm start -- --menu        # Menu de inicio
 npm run dev                # Modo dev con hot reload

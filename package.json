@@ -4,7 +4,9 @@
   "description": "Fast, autonomous AI agent infrastructure for low-power devices",
   "main": "dist/daemon.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "esbuild src/daemon.ts --platform=node --format=cjs --outdir=dist --sourcemap --bundle --external:better-sqlite3 --external:discord.js --external:node-telegram-bot-api --external:node-cron --external:inquirer",
+    "build:tsc": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/daemon.js",
     "cli": "node dist/daemon.js --channel cli",
     "debug:chat": "node scripts/debug-chat.js",
@@ -27,6 +29,7 @@
     "@types/node-telegram-bot-api": "^0.64.7",
     "@typescript-eslint/eslint-plugin": "^8.22.0",
     "@typescript-eslint/parser": "^8.22.0",
+    "esbuild": "^0.27.3",
     "eslint": "^9.19.0",
     "prettier": "^3.4.2",
     "tsx": "^4.19.2",

@@ -102,6 +102,15 @@ Notes:
 ## Run
 
 ```bash
+# Fast build (default)
+npm run build
+
+# Typecheck only
+npm run typecheck
+
+# Typecheck build (slower, full tsc)
+npm run build:tsc
+
 # Start configured channels (daemon)
 npm start
 
