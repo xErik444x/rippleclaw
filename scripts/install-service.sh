@@ -6,6 +6,9 @@ SERVICE_SRC="$ROOT_DIR/rippleclaw.service"
 SERVICE_DST="/etc/systemd/system/rippleclaw.service"
 WRAPPER_DST="/usr/local/bin/rippleclaw"
 
+SERVICE_USER="${RIPPLECLAW_SERVICE_USER:-${SUDO_USER:-$USER}}"
+SERVICE_GROUP="${RIPPLECLAW_SERVICE_GROUP:-$(id -gn "$SERVICE_USER" 2>/dev/null || echo "$SERVICE_USER")}"
+
 NVMRC_PATH="$ROOT_DIR/.nvmrc"
 ASDF_TOOL_VERSIONS="$ROOT_DIR/.tool-versions"
 VOLTA_HOME_DEFAULT="$HOME/.volta"
@@ -42,6 +45,18 @@ sudo cp "$SERVICE_SRC" "$SERVICE_DST"
 # Patch WorkingDirectory/ExecStart to match current install path
 sudo sed -i "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR|g" "$SERVICE_DST"
 sudo sed -i "s|^ExecStart=.*|ExecStart=$EXEC_START|g" "$SERVICE_DST"
+
+# Ensure service runs as the invoking user (not root)
+if grep -q "^User=" "$SERVICE_DST"; then
+  sudo sed -i "s|^User=.*|User=$SERVICE_USER|g" "$SERVICE_DST"
+else
+  sudo sed -i "/^\\[Service\\]/a User=$SERVICE_USER" "$SERVICE_DST"
+fi
+if grep -q "^Group=" "$SERVICE_DST"; then
+  sudo sed -i "s|^Group=.*|Group=$SERVICE_GROUP|g" "$SERVICE_DST"
+else
+  sudo sed -i "/^\\[Service\\]/a Group=$SERVICE_GROUP" "$SERVICE_DST"
+fi
 
 sudo systemctl daemon-reload
 sudo systemctl enable rippleclaw
