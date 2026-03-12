@@ -12,6 +12,15 @@ export async function startTelegram(agent: Agent, config: Config) {
   const TelegramBot = (await import("node-telegram-bot-api")).default;
   const bot = new TelegramBot(tgConfig.token, { polling: true });
 
+  // Register bot commands with autocomplete
+  await bot.setMyCommands([
+    { command: "start", description: "Iniciar el bot" },
+    { command: "help", description: "Mostrar ayuda" },
+    { command: "newsession", description: "Reiniciar sesión/olvidar contexto" },
+    { command: "status", description: "Ver estado actual" },
+    { command: "compress", description: "Comprimir contexto" }
+  ]);
+
   const allowAll = tgConfig.allowed_users.includes("*");
 
   console.log("[Telegram] ✅ Bot started, polling...");

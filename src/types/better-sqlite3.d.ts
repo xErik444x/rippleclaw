@@ -5,9 +5,14 @@ declare module "better-sqlite3" {
     get(...params: unknown[]): T | undefined;
   }
 
+  export interface Transaction {
+    (...params: unknown[]): void;
+  }
+
   export interface Database {
     prepare<T = unknown>(sql: string): Statement<T>;
     exec(sql: string): void;
+    transaction<T extends (...args: unknown[]) => void>(fn: T): Transaction;
   }
 
   interface DatabaseConstructor {

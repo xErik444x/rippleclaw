@@ -22,6 +22,7 @@ export interface MemoryStore {
   clear(channel: string, userId: string): void;
   saveNote(key: string, value: string): void;
   getNote(key: string): string | null;
+  deleteNote(key: string): boolean;
   listNotes(): { key: string; value: string; updated_at: number }[];
   searchNotes(query: string, limit?: number): { key: string; value: string; updated_at: number }[];
 }
@@ -144,6 +145,19 @@ class SQLiteMemory implements MemoryStore {
     return row?.value ?? null;
   }
 
+  deleteNote(key: string): boolean {
+    const existing = this.getNote(key);
+    if (!existing) return false;
+    const deleteFts = this.db.prepare(`DELETE FROM notes_fts WHERE key = ?`);
+    const deleteMain = this.db.prepare(`DELETE FROM notes WHERE key = ?`);
+    const trx = this.db.transaction(() => {
+      deleteFts.run(key);
+      deleteMain.run(key);
+    });
+    trx();
+    return true;
+  }
+
   listNotes(): { key: string; value: string; updated_at: number }[] {
     return this.db
       .prepare(`SELECT key, value, updated_at FROM notes ORDER BY updated_at DESC`)
@@ -176,6 +190,9 @@ class NoopMemory implements MemoryStore {
   saveNote() {}
   getNote() {
     return null;
+  }
+  deleteNote(): boolean {
+    return false;
   }
   listNotes(): { key: string; value: string; updated_at: number }[] {
     return [];

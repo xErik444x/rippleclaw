@@ -1,5 +1,6 @@
 import type { Config } from "./config";
 import type { MemoryStore } from "./memory";
+import { SessionStore } from "./session";
 import { chat, parseToolCalls, type Message, type Tool } from "../providers/base";
 import { logToolEvent } from "./logger";
 import { Semaphore } from "./semaphore";
@@ -18,7 +19,7 @@ const SYSTEM_PROMPT = `You are RippleClaw, a fast and autonomous AI agent runnin
 You have access to tools: shell execution, file read/write, web search, weather lookup, summarize, and persistent memory notes.
 Be concise. When asked to do something, do it — don't just explain how.
 Always use tools when they would help accomplish the task. Use web_search for up-to-date or external info. Use weather for weather requests. Use summarize for URL/file/video summaries or transcripts.
-You remember previous conversations via your memory system.
+You remember previous conversations via your session context and memory notes.
 Do not call env/shell/file unless the user explicitly asks about OS, cwd, workspace, or files. If you call env, include all returned fields in the reply.`;
 
 export interface AgentContext {
@@ -61,11 +62,22 @@ export class Agent {
       {
         definition: fileTool.definition,
         execute: (args) =>
-          fileTool.execute(args as { action: "read" | "write" | "list"; path: string; content?: string })
+          fileTool.execute(
+            args as { action: "read" | "write" | "list"; path: string; content?: string }
+          )
       },
       {
         definition: memoryTool.definition,
-        execute: (args) => memoryTool.execute(args as { action: "save" | "get"; key: string; value?: string })
+        execute: (args) =>
+          memoryTool.execute(
+            args as {
+              action: "save" | "get" | "list" | "search" | "delete";
+              key?: string;
+              value?: string;
+              query?: string;
+              limit?: number;
+            }
+          )
       },
       {
         definition: modelTool.definition,
@@ -73,8 +85,7 @@ export class Agent {
       },
       {
         definition: envTool.definition,
-        execute: (args) =>
-          envTool.execute(args as { include?: ("os" | "cwd" | "workspace")[] })
+        execute: (args) => envTool.execute(args as { include?: ("os" | "cwd" | "workspace")[] })
       },
       {
         definition: webTool.definition,
@@ -101,13 +112,42 @@ export class Agent {
     ];
   }
 
+  /** Clear the session for a given context (used by /newsession command) */
+  clearSession(ctx: AgentContext): void {
+    const session = new SessionStore(this.config, ctx.channel, ctx.userId);
+    session.clear();
+  }
+
   async run(input: string, ctx: AgentContext): Promise<string> {
     const lower = input.toLowerCase();
+
+    // Load session FIRST to ensure all messages are saved
+    const session = new SessionStore(this.config, ctx.channel, ctx.userId);
+    session.addMessage("user", input);
+
+    // Handle /newsession command
+    const isNewSessionCommand =
+      /^\/?(newsession|nuevasesion|nuevasesión|nueva\s*sesi[oó]n|reset[eo]|reinici[oa]r?|empezar\s+nuevo|empezar\s+nueva)\b/i.test(
+        input.trim()
+      );
+    if (isNewSessionCommand) {
+      session.clear();
+      return "Listo, inicié una sesión nueva. El contexto anterior fue limpiado.";
+    }
+
+    // Detect session-related questions
+    const asksAboutSession =
+      /reiniciar?|reset|empezar\s+nuevo|empezar\s+nueva|nueva\s*sesi|cambiar\s*de\s*chat|olvidar?\s*contexto/i.test(
+        lower
+      );
 
     const sanitizeCapturedName = (value: string) => {
       return value
         .split(/[,;:]/)[0]
-        .replace(/\b(?:guardad[oa]|guardalo|guardala|recordad[oa]|recordalo|recordala|recuerda|recorda)\b.*$/i, "")
+        .replace(
+          /\b(?:guardad[oa]|guardalo|guardala|recordad[oa]|recordalo|recordala|recuerda|recorda)\b.*$/i,
+          ""
+        )
         .trim()
         .replace(/[.!?]+$/, "");
     };
@@ -135,41 +175,54 @@ export class Agent {
       const newName = sanitizeCapturedName(nameChangeMatch[1]);
       if (newName) {
         this.memory.saveNote("name", newName);
-        return `Guardé esto en memoria, será útil a futuro. (key: "name")\nTu nombre es ${newName}.`;
+        const response = `Guardé esto en memoria, será útil a futuro. (key: "name")\nTu nombre es ${newName}.`;
+        session.addMessage("assistant", response);
+        return response;
       }
     }
     if (nickChangeMatch && nickChangeMatch[1]) {
       const newNick = sanitizeCapturedName(nickChangeMatch[1]);
       if (newNick) {
         this.memory.saveNote("nickname", newNick);
-        return `Listo. Me llamo ${newNick}.`;
+        const response = `Listo. Me llamo ${newNick}.`;
+        session.addMessage("assistant", response);
+        return response;
       }
     }
 
     if (asksUserName) {
       const fromNotes =
-        this.memory.getNote("name") || this.memory.getNote("user_name") || this.memory.getNote("username");
+        this.memory.getNote("name") ||
+        this.memory.getNote("user_name") ||
+        this.memory.getNote("username");
       const userName = fromNotes || ctx.userName || ctx.userId;
-      return userName ? `Tu nombre es ${userName}.` : "No tengo tu nombre guardado.";
+      const response = userName ? `Tu nombre es ${userName}.` : "No tengo tu nombre guardado.";
+      session.addMessage("assistant", response);
+      return response;
     }
 
     if (asksAgentName) {
       const nick = this.memory.getNote("nickname");
-      return nick ? `Me llamo ${nick}.` : "Me llamo RippleClaw.";
+      const response = nick ? `Me llamo ${nick}.` : "Me llamo RippleClaw.";
+      session.addMessage("assistant", response);
+      return response;
+    }
+
+    if (asksAboutSession) {
+      const sessionCount = session.getMessageCount();
+      const response =
+        sessionCount > 0
+          ? `Sí, puedo reiniciar la sesión. ¿Quieres que lo haga ahora? (El contexto actual tiene ${sessionCount} mensajes)`
+          : "La sesión ya está limpia. ¿Algo más en lo que te pueda ayudar?";
+      session.addMessage("assistant", response);
+      return response;
     }
 
     const isCompressOnly = wantsCompress && (isCompressCommand || input.trim().length <= 40);
 
     const contextCfg = this.config.context || { max_tokens: 16000, compress_threshold: 0.85 };
     const threshold = Math.floor(contextCfg.max_tokens * (contextCfg.compress_threshold || 0.85));
-    const summaryKey = `context_summary:${ctx.channel}:${ctx.userId}`;
-    const summaryLastIdKey = `context_summary_last_id:${ctx.channel}:${ctx.userId}`;
-    let summary = this.memory.getNote(summaryKey);
-    const lastSummaryIdRaw = this.memory.getNote(summaryLastIdKey);
-    const lastSummaryId = lastSummaryIdRaw ? Number(lastSummaryIdRaw) : 0;
-
-    const recallAll = this.memory.recall(ctx.channel, ctx.userId, 50).reverse();
-    const recallRecent = recallAll.slice(-15);
+    let summary = session.getSummary();
 
     const runtimeInfo = `Runtime:
 os=${process.platform === "win32" ? "Windows" : process.platform === "darwin" ? "macOS" : "Linux"}
@@ -192,7 +245,9 @@ Rules:
       return base;
     };
 
-    const historyMessages = recallRecent.map((m) => ({
+    // Build history from session file
+    const sessionRecent = session.getMessages(15);
+    const historyMessages: Message[] = sessionRecent.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content
     }));
@@ -202,20 +257,22 @@ Rules:
     const estimatedWithoutInput = estimateMessages(buildMessages(historyMessages, false));
 
     if (isStatusCommand) {
-      return [
+      const response = [
         `Modelo actual: ${this.config.default_provider} / ${this.config.default_model}`,
         `Contexto estimado: ~${estimatedWithoutInput} tokens`,
-        `Max contexto: ${contextCfg.max_tokens} (threshold ~${threshold})`
+        `Max contexto: ${contextCfg.max_tokens} (threshold ~${threshold})`,
+        `Mensajes en sesión: ${session.getMessageCount()}`
       ].join("\n");
+      session.addMessage("assistant", response);
+      return response;
     }
 
+    // Compression: when tokens exceed threshold or user explicitly requests
     const shouldCompress = wantsCompress || estimated >= threshold;
-    if (shouldCompress && recallAll.length > 0) {
+    if (shouldCompress && session.getMessageCount() > 0) {
       try {
-        const delta = recallAll.filter((m) => (m.id ?? 0) > lastSummaryId);
-        const convo = (delta.length > 0 ? delta : recallAll)
-          .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
-          .join("\n");
+        const allMessages = session.getAllMessages();
+        const convo = allMessages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n");
         const summarizePrompt = [
           summary ? `Resumen anterior:\n${summary}` : "",
           "Resume la conversación en español, conservando hechos, preferencias, tareas y decisiones.",
@@ -238,35 +295,32 @@ Rules:
           { tools: undefined }
         );
         summary = summaryResp.content.trim() || summary || "";
-        if (summary) this.memory.saveNote(summaryKey, summary);
-        const newestId = recallAll[recallAll.length - 1]?.id ?? 0;
-        if (newestId > 0) this.memory.saveNote(summaryLastIdKey, String(newestId));
+        if (summary) {
+          session.setSummary(summary);
+          session.trimMessages(6);
+        }
       } catch {
         // Keep previous summary if summarization fails
       }
 
-      const tail = recallRecent.slice(-6).map((m) => ({
+      // Rebuild messages with compressed context
+      const tail = session.getMessages(6).map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content
       }));
       messages = buildMessages(tail, true);
 
       if (isCompressOnly) {
-        return "Listo, comprimí el contexto.";
+        const msgCount = session.getMessageCount();
+        const response =
+          msgCount > 6
+            ? `Listo, resumí ${msgCount - 6} mensajes en un resumen y dejé los últimos 6.`
+            : "Listo, comprimí el contexto.";
+        session.addMessage("assistant", response);
+        return response;
       }
     }
-    const memoryIntent = /(?:recorda|recuerda|guarda|guardar|memoriz|anota|nota|remember|save|note)/i.test(
-      input
-    );
-    const shouldAutoSave = this.config.memory.auto_save && memoryIntent;
 
-    // Save user message
-    if (shouldAutoSave) {
-      this.memory.save("user", input, ctx.channel, ctx.userId);
-      console.log("Guardé esto en memoria, será útil a futuro.");
-    }
-
-    // Build conversation history
     // Agentic loop: up to 5 tool call iterations
     let finalResponse = "";
     const loopMessages = [...messages];
@@ -362,22 +416,23 @@ Rules:
       lastResponseContent = final.content || lastResponseContent;
     }
 
-    const toolFallback = lastToolResults.length ? `Tool results:\n${lastToolResults.join("\n")}` : "";
+    const toolFallback = lastToolResults.length
+      ? `Tool results:\n${lastToolResults.join("\n")}`
+      : "";
 
-    if (!finalResponse) finalResponse = lastResponseContent || toolFallback || "I completed the requested actions.";
+    if (!finalResponse)
+      finalResponse = lastResponseContent || toolFallback || "I completed the requested actions.";
 
     if (
       toolFallback &&
-      (finalResponse.startsWith("Calling tools:") || finalResponse === "I completed the requested actions.")
+      (finalResponse.startsWith("Calling tools:") ||
+        finalResponse === "I completed the requested actions.")
     ) {
       finalResponse = toolFallback;
     }
 
-    // Save assistant response
-    if (shouldAutoSave) {
-      this.memory.save("assistant", finalResponse, ctx.channel, ctx.userId);
-      console.log("Guardé esto en memoria, será útil a futuro.");
-    }
+    // Always save assistant response to session
+    session.addMessage("assistant", finalResponse);
 
     return finalResponse;
   }

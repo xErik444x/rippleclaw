@@ -11,7 +11,7 @@ export function createMemoryTool(memory: import("../core/memory").MemoryStore) {
         properties: {
           action: {
             type: "string",
-            enum: ["save", "get", "list", "search"],
+            enum: ["save", "get", "list", "search", "delete"],
             description: "Action to perform on memory notes"
           },
           key: { type: "string", description: 'Note key/name (or "all" for list)' },
@@ -24,7 +24,7 @@ export function createMemoryTool(memory: import("../core/memory").MemoryStore) {
     } satisfies Tool,
 
     async execute(args: {
-      action: "save" | "get" | "list" | "search";
+      action: "save" | "get" | "list" | "search" | "delete";
       key?: string;
       value?: string;
       query?: string;
@@ -75,6 +75,16 @@ export function createMemoryTool(memory: import("../core/memory").MemoryStore) {
           if (!results.length) return `No notes match "${args.query}"`;
           const lines = results.map((note) => `${note.key}=${note.value}`);
           return `Matches:\n${lines.join("\n")}`;
+        }
+        case "delete": {
+          if (typeof args.key !== "string" || !args.key.trim()) {
+            return 'Error: "key" must be a non-empty string for delete';
+          }
+          const normalizedKey = args.key.trim();
+          const deleted = memory.deleteNote(normalizedKey);
+          return deleted
+            ? `Nota "${normalizedKey}" eliminada.`
+            : `No se encontró nota con key "${normalizedKey}".`;
         }
         default:
           return `Error: Unsupported action "${args.action}"`;
