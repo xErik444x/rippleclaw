@@ -59,7 +59,7 @@ case "\${1:-}" in
   cli)
     shift
     if [[ -f "\$ROOT/package.json" ]] && (command -v volta >/dev/null 2>&1 || [[ -x "\$HOME/.volta/bin/volta" ]]); then
-      exec /bin/bash -lc 'export VOLTA_HOME="$HOME/.volta"; export PATH="$VOLTA_HOME/bin:$PATH"; exec node "'"$ROOT_DIR"'/dist/daemon.js" --channel cli "$@"' -- "\$@"
+      exec /bin/bash -lc 'export VOLTA_HOME="$HOME/.volta"; export PATH="\$VOLTA_HOME/bin:\$PATH"; exec node "'"$ROOT_DIR"'/dist/daemon.js" --channel cli "$@"' -- "\$@"
     elif [[ -f "\$ROOT/.nvmrc" ]]; then
       NVM_DIR="\${NVM_DIR:-\$HOME/.nvm}"
       if [[ -s "\$NVM_DIR/nvm.sh" ]]; then
