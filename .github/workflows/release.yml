@@ -19,10 +19,6 @@ jobs:
             target: linux-x64
             ext: ""
             script: build:bin:linux-x64
-          - os: ubuntu-latest
-            target: linux-arm64
-            ext: ""
-            script: build:bin:linux-arm64
           - os: windows-latest
             target: win-x64
             ext: ".exe"
@@ -39,12 +35,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Install build tools for ARM
-        if: matrix.target == 'linux-arm64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y make g++ gcc
 
       - name: Build binary
         run: npm run ${{ matrix.script }}
@@ -102,8 +92,14 @@ jobs:
 
             ## Downloads
             - `rippleclaw-linux-x64` - Linux x64
-            - `rippleclaw-linux-arm64` - Linux ARM64 (Raspberry Pi, Orange Pi, etc.)
             - `rippleclaw-win-x64.exe` - Windows x64
+
+            ## ARM Build
+            For ARM devices (Raspberry Pi, Orange Pi), build manually:
+            ```bash
+            npm install
+            npm run build:bin:linux-arm64
+            ```
 
             ## Usage
             1. Download the binary for your OS
@@ -115,5 +111,4 @@ jobs:
           draft: false
           files: |
             artifacts/rippleclaw-linux-x64/rippleclaw
-            artifacts/rippleclaw-linux-arm64/rippleclaw
             artifacts/rippleclaw-win-x64/rippleclaw.exe
