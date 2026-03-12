@@ -58,7 +58,22 @@ ROOT="$ROOT_DIR"
 case "\${1:-}" in
   cli)
     shift
-    exec node "\$ROOT/dist/daemon.js" --channel cli "\$@"
+    if [[ -f "\$ROOT/package.json" ]] && (command -v volta >/dev/null 2>&1 || [[ -x "\$HOME/.volta/bin/volta" ]]); then
+      exec /bin/bash -lc 'export VOLTA_HOME="$HOME/.volta"; export PATH="$VOLTA_HOME/bin:$PATH"; exec node "'"$ROOT_DIR"'/dist/daemon.js" --channel cli "$@"' -- "\$@"
+    elif [[ -f "\$ROOT/.nvmrc" ]]; then
+      NVM_DIR="\${NVM_DIR:-\$HOME/.nvm}"
+      if [[ -s "\$NVM_DIR/nvm.sh" ]]; then
+        exec /bin/bash -lc 'export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use --silent; exec node "'"$ROOT_DIR"'/dist/daemon.js" --channel cli "$@"' -- "\$@"
+      fi
+      exec node "\$ROOT/dist/daemon.js" --channel cli "\$@"
+    elif [[ -f "\$ROOT/.tool-versions" ]]; then
+      if grep -q '^nodejs ' "\$ROOT/.tool-versions" && [[ -s "\$HOME/.asdf/asdf.sh" ]]; then
+        exec /bin/bash -lc '. "$HOME/.asdf/asdf.sh"; asdf exec node "'"$ROOT_DIR"'/dist/daemon.js" --channel cli "$@"' -- "\$@"
+      fi
+      exec node "\$ROOT/dist/daemon.js" --channel cli "\$@"
+    else
+      exec node "\$ROOT/dist/daemon.js" --channel cli "\$@"
+    fi
     ;;
   logs)
     exec sudo journalctl -u "\$SERVICE" -f
