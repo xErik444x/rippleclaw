@@ -5,15 +5,17 @@
   "main": "dist/daemon.js",
   "scripts": {
     "build": "esbuild src/daemon.ts --platform=node --format=cjs --outdir=dist --sourcemap --bundle --external:better-sqlite3 --external:discord.js --external:node-telegram-bot-api --external:node-cron --external:inquirer",
-    "build:tsc": "tsc -p tsconfig.json",
+    "build:tsc": "tsc -p tsconfig.json --incremental false",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/daemon.js",
     "cli": "node dist/daemon.js --channel cli",
-    "debug:chat": "node scripts/debug-chat.js",
+    "debug:chat": "npm run build:tsc --silent && node scripts/debug-chat.js",
     "dev": "tsx --watch src/daemon.ts",
     "lint": "eslint .",
     "format": "prettier -w .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "service:install": "bash scripts/install-service.sh",
+    "service:uninstall": "bash scripts/uninstall-service.sh"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",

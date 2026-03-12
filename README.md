@@ -176,17 +176,19 @@ In config.json:
 ## Install as systemd service
 
 ```bash
-# Copy service file
-sudo cp rippleclaw.service /etc/systemd/system/
-
-# Enable and start
-sudo systemctl daemon-reload
-sudo systemctl enable rippleclaw
-sudo systemctl start rippleclaw
+# Install (patches WorkingDirectory/ExecStart)
+npm run service:install
 
 # Check logs
 sudo journalctl -u rippleclaw -f
+
+# Uninstall
+npm run service:uninstall
 ```
+
+Notes:
+- The installer detects Node version managers (Volta, NVM via `.nvmrc`, asdf via `.tool-versions`) and
+  configures `ExecStart` to use the correct Node version.
 
 ## Project structure
 

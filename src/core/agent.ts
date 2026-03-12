@@ -87,9 +87,11 @@ export class Agent {
       /(sistema operativo|os\b|windows|linux|mac|cwd|workspace|carpeta|directorio)/i.test(input);
     const nameChangeMatch =
       input.match(/(?:cambia(?:me)?|cambiame|quiero que cambies?)\s+mi\s+nombre\s+a\s+(.+)/i) ||
+      input.match(/(?:quiero|quisiera)\s+que\s+me\s+llames?\s+(.+)/i) ||
       input.match(/(?:mi\s+nombre\s+es|soy)\s+(.+)/i);
     const nickChangeMatch =
       input.match(/(?:cambia(?:me)?|cambiame|quiero que te llames?)\s+(.+)/i) ||
+      input.match(/(?:quiero|quisiera)\s+que\s+te\s+llames?\s+(.+)/i) ||
       input.match(/(?:tu\s+nombre\s+es|te\s+llamas)\s+(.+)/i);
     if (nameChangeMatch && nameChangeMatch[1]) {
       const newName = nameChangeMatch[1].trim().replace(/[.!?]+$/, "");

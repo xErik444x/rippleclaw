@@ -1,0 +1,19 @@
+[Unit]
+Description=RippleClaw AI Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/rippleclaw
+ExecStart=/usr/bin/node /opt/rippleclaw/dist/daemon.js
+Restart=on-failure
+RestartSec=3
+Environment=NODE_ENV=production
+
+# Resource limits for low-power devices
+MemoryMax=128M
+CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target
