@@ -1,6 +1,6 @@
 {
   "name": "rippleclaw",
-  "version": "0.1.1",
+  "version": "0.1.2-crons",
   "description": "Fast, autonomous AI agent infrastructure for low-power devices",
   "main": "dist/daemon.js",
   "bin": "dist/daemon.js",
