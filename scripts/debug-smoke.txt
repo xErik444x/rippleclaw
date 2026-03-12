@@ -1,0 +1,15 @@
+# Debug smoke prompts for debug-chat
+hola
+como me llamo?
+quiero que te llames Rippleclown!
+como te llamas?
+recorda esto: proyecto=RippleClaw
+recupera la nota proyecto
+lista el directorio .
+lee README.md
+crea el archivo .rippleclaw/tmp/debug_chat.txt con contenido hola
+lee .rippleclaw/tmp/debug_chat.txt
+ejecuta el comando pwd
+ejecuta el comando npm --version
+cambia el modelo a openrouter/auto
+decime el sistema operativo y el workspace
