@@ -7,3 +7,4 @@ export { createModelTool } from "./model";
 export { createWebTool } from "./web";
 export { createWeatherTool } from "./weather";
 export { createSummarizeTool } from "./summarize";
+export { createEmailTool } from "./email";

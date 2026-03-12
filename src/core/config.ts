@@ -2,6 +2,30 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
+export type EmailProvider = "smtp" | "api";
+
+export interface SmtpEmailConfig {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  secure: boolean;
+  timeout_ms: number;
+}
+
+export interface ApiEmailConfig {
+  base_url: string;
+  api_key: string;
+}
+
+export interface EmailConfig {
+  enabled: boolean;
+  provider: EmailProvider;
+  default_from: string;
+  smtp: SmtpEmailConfig;
+  api: ApiEmailConfig;
+}
+
 export interface ProviderConfig {
   name: string;
   api_base: string;
@@ -68,9 +92,14 @@ export interface Config {
     enabled: boolean;
     jobs: { id: string; schedule: string; prompt: string }[];
   };
+  email: EmailConfig;
 }
 
-let _config: Config | null = null;
+interface ConfigWithMetadata extends Config {
+  _path?: string;
+}
+
+let _config: ConfigWithMetadata | null = null;
 
 export function resolveConfigPath(): string {
   if (process.env.RIPPLECLAW_CONFIG) return process.env.RIPPLECLAW_CONFIG;
@@ -138,7 +167,8 @@ export function createDefaultConfig(): Config {
       }
     },
     runtime: { max_tool_concurrency: 1 },
-    cron: { enabled: true, jobs: [] }
+    cron: { enabled: true, jobs: [] },
+    email: createDefaultEmailConfig()
   };
 }
 
@@ -146,17 +176,37 @@ export function loadConfig(configPath?: string): Config {
   if (_config) return _config;
 
   const home = process.env.HOME || homedir();
-  const path = configPath || resolveConfigPath();
+  const resolvedPath = configPath || resolveConfigPath();
+  const pathCandidates = Array.from(
+    new Set<string>([
+      ...(configPath ? [configPath] : []),
+      ...(process.env.RIPPLECLAW_CONFIG && process.env.RIPPLECLAW_CONFIG !== configPath
+        ? [process.env.RIPPLECLAW_CONFIG]
+        : []),
+      "config.json",
+      resolvedPath
+    ])
+  );
 
-  // Try local config.json first (dev mode)
-  let raw: string;
-  try {
-    raw = readFileSync("config.json", "utf-8");
-  } catch {
-    raw = readFileSync(path, "utf-8");
+  let raw: string | null = null;
+  let lastError: unknown;
+  let finalPath = resolvedPath;
+
+  for (const candidate of pathCandidates) {
+    try {
+      raw = readFileSync(candidate, "utf-8");
+      finalPath = candidate;
+      break;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  if (raw === null) {
+    throw lastError ?? new Error(`Unable to read config from ${resolvedPath}`);
   }
 
-  _config = JSON.parse(raw) as Config;
+  _config = JSON.parse(raw) as ConfigWithMetadata;
+  _config._path = finalPath; // Store path for saving later
 
   // Expand ~ in paths
   if (_config.memory.path.startsWith("~")) {
@@ -208,7 +258,136 @@ export function loadConfig(configPath?: string): Config {
     }
   }
 
+  const emailDefaults = createDefaultEmailConfig();
+  _config.email = mergeEmailConfig(emailDefaults, _config.email);
+  validateEmailConfig(_config.email);
+
   return _config;
+}
+
+import { writeFileSync } from "fs";
+
+export function saveConfig(config: Config): void {
+  const metadata = config as ConfigWithMetadata;
+  const path = metadata._path || resolveConfigPath();
+  const toSave = { ...config } as ConfigWithMetadata;
+  delete toSave._path;
+  writeFileSync(path, JSON.stringify(toSave, null, 2), "utf-8");
+}
+
+export function updateConfig(config: Config, path: string, value: unknown): void {
+  const keys = path.split(".");
+  let current: Record<string, unknown> = config as unknown as Record<string, unknown>;
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key = keys[i];
+    if (key.includes("[") && key.includes("]")) {
+      const baseKey = key.split("[")[0];
+      const index = parseInt(key.split("[")[1].split("]")[0]);
+      if (!current[baseKey]) current[baseKey] = [];
+      const arr = current[baseKey] as Record<string, unknown>[];
+      if (!arr[index]) arr[index] = {};
+      current = arr[index];
+    } else {
+      if (!current[key]) current[key] = {};
+      current = current[key] as Record<string, unknown>;
+    }
+  }
+
+  const lastKey = keys[keys.length - 1];
+  let finalValue = value;
+
+  // Smart type conversion based on existing value
+  let target: Record<string, unknown> | unknown[];
+  let targetKey: string | number;
+
+  if (lastKey.includes("[") && lastKey.includes("]")) {
+    const baseKey = lastKey.split("[")[0];
+    const index = parseInt(lastKey.split("[")[1].split("]")[0]);
+    if (!current[baseKey]) current[baseKey] = [];
+    target = current[baseKey] as unknown[];
+    targetKey = index;
+  } else {
+    target = current;
+    targetKey = lastKey;
+  }
+
+  const existingValue = (target as Record<string, unknown>)[targetKey as string];
+  if (typeof existingValue === "boolean" && typeof value === "string") {
+    finalValue = value.toLowerCase() === "true" || value === "1" || value === "on";
+  } else if (typeof existingValue === "number" && typeof value === "string") {
+    finalValue = Number(value);
+  } else if (typeof existingValue === "object" && existingValue !== null && typeof value === "string") {
+    try {
+      finalValue = JSON.parse(value);
+    } catch {
+      // Keep as string if not valid JSON
+    }
+  }
+
+  if (Array.isArray(target)) {
+    target[targetKey as number] = finalValue;
+  } else {
+    target[targetKey as string] = finalValue;
+  }
+
+  saveConfig(config);
+}
+
+const EMAIL_FROM_REGEX = /^(?:[^<>]+ <[^<>@]+@[^<>@]+\.[^<>@]+>|[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+)$/i;
+const VALID_EMAIL_PROVIDERS: EmailProvider[] = ["smtp", "api"];
+
+export function createDefaultEmailConfig(): EmailConfig {
+  return {
+    enabled: false,
+    provider: "smtp",
+    default_from: "Ripple <no-reply@rippleclaw.dev>",
+    smtp: {
+      host: "",
+      port: 587,
+      username: "",
+      password: "",
+      secure: true,
+      timeout_ms: 15000
+    },
+    api: {
+      base_url: "",
+      api_key: ""
+    }
+  };
+}
+
+export function mergeEmailConfig(
+  defaults: EmailConfig,
+  override?: Partial<EmailConfig>
+): EmailConfig {
+  if (!override) return defaults;
+  return {
+    ...defaults,
+    ...override,
+    smtp: { ...defaults.smtp, ...(override.smtp ?? {}) },
+    api: { ...defaults.api, ...(override.api ?? {}) }
+  };
+}
+
+function validateEmailConfig(config: EmailConfig) {
+  if (!config.default_from || !config.default_from.trim()) {
+    config.default_from = createDefaultEmailConfig().default_from;
+  } else {
+    config.default_from = config.default_from.trim();
+  }
+
+  if (config.enabled) {
+    if (!VALID_EMAIL_PROVIDERS.includes(config.provider)) {
+      throw new Error(
+        `Invalid email.provider "${config.provider}". Must be one of: ${VALID_EMAIL_PROVIDERS.join(", ")}`
+      );
+    }
+    if (!EMAIL_FROM_REGEX.test(config.default_from)) {
+      throw new Error(
+        `email.default_from "${config.default_from}" must be in format "Name <email@domain>" or "email@domain"`
+      );
+    }
+  }
 }
 
 export function getProvider(config: Config, name?: string): ProviderConfig {

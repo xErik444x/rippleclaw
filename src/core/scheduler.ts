@@ -7,6 +7,11 @@ interface ScheduledTask {
   stop: () => void;
 }
 
+let _nodeCron: {
+  schedule: (expr: string, func: () => void | Promise<void>) => ScheduledTask;
+  validate: (expr: string) => boolean;
+} | null = null;
+
 let _agent: Agent;
 let _memory: MemoryStore;
 let _telegramBot: {
@@ -23,14 +28,15 @@ export async function startScheduler(agent: Agent, config: Config, memory: Memor
     return;
   }
 
-  const nodeCron = (await import("node-cron")) as unknown as {
+  const nodeCronImport = (await import("node-cron")) as unknown as {
     default: {
       schedule: (expr: string, func: () => void | Promise<void>) => ScheduledTask;
       validate: (expr: string) => boolean;
     };
   };
+  _nodeCron = nodeCronImport.default;
 
-  const jobs = memory.listCronJobs();
+  const jobs = _memory.listCronJobs();
   console.log(`[Scheduler] Loading ${jobs.length} cron jobs`);
 
   for (const job of jobs) {
@@ -39,7 +45,7 @@ export async function startScheduler(agent: Agent, config: Config, memory: Memor
       continue;
     }
 
-    if (!nodeCron.default.validate(job.schedule)) {
+    if (!_nodeCron.validate(job.schedule)) {
       console.warn(`[Scheduler] Invalid cron for "${job.id}": ${job.schedule}`);
       continue;
     }
@@ -78,12 +84,12 @@ function registerJob(id: string, schedule: string, prompt: string) {
     return;
   }
 
-  const nodeCron = require("node-cron") as {
-    schedule: (expr: string, func: () => void | Promise<void>) => ScheduledTask;
-    validate: (expr: string) => boolean;
-  };
+  if (!_nodeCron) {
+    console.error("[Scheduler] node-cron not initialized");
+    return;
+  }
 
-  const task = nodeCron.schedule(schedule, async () => {
+  const task = _nodeCron.schedule(schedule, async () => {
     console.log(`[Scheduler] Running job "${id}": ${prompt.slice(0, 50)}...`);
     try {
       const cronPrompt = `[CRON JOB] ${prompt}\n\nResponde solo con el resultado directo, sin saludos ni despedidas.`;
@@ -91,9 +97,9 @@ function registerJob(id: string, schedule: string, prompt: string) {
         channel: "cron",
         userId: `cron:${id}`
       });
-      console.log(`[Scheduler] Job "${id}" done: ${result.slice(0, 100)}...`);
+      console.log(`[Scheduler] Job "${id}" done: ${result.content.slice(0, 100)}...`);
 
-      sendCronMessage(result);
+      sendCronMessage(result.content);
     } catch (err) {
       console.error(`[Scheduler] Job "${id}" failed:`, err);
     }
@@ -124,11 +130,12 @@ export async function onCronJobChanged(id: string) {
     return;
   }
 
-  const nodeCron = require("node-cron") as {
-    validate: (expr: string) => boolean;
-  };
+  if (!_nodeCron) {
+    console.error("[Scheduler] node-cron not initialized");
+    return;
+  }
 
-  if (!nodeCron.validate(job.schedule)) {
+  if (!_nodeCron.validate(job.schedule)) {
     console.warn(`[Scheduler] Invalid cron for "${id}": ${job.schedule}`);
     return;
   }

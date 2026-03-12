@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { createMemory } from "../src/core/memory";
 import type { Config } from "../src/core/config";
 import { join } from "path";
-import { rmSync, mkdirSync, existsSync } from "fs";
+import { rmSync, mkdirSync } from "fs";
 
 const testDir = join(__dirname, "..", ".test-data");
 

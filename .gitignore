@@ -19,3 +19,5 @@ daemon
 messages.json
 notes.json
 .test-data/
+
+**/.tmp/

@@ -1,11 +1,13 @@
 import { createDefaultConfig, loadConfig, resolveConfigPath } from "./core/config";
+import type { EmailProvider } from "./core/config";
 import { createMemory } from "./core/memory";
 import { Agent } from "./core/agent";
 import { startTelegram } from "./channels/telegram";
 import { startDiscord } from "./channels/discord";
-import { startScheduler, onCronJobChanged, setTelegramBot } from "./core/scheduler";
+import { startScheduler, onCronJobChanged } from "./core/scheduler";
 import { setCronCallback } from "./tools/cron";
 import { cleanupOldLogs, startLogTail } from "./core/log-tail";
+import { EmailSender } from "./core/email";
 
 let runSetupMenu: typeof import("./channels/cli-setup").runSetupMenu | null = null;
 let startCLI: typeof import("./channels/cli").startCLI | null = null;
@@ -29,6 +31,7 @@ async function loadInteractiveDeps() {
 const VERSION = "0.1.0";
 
 const args = process.argv.slice(2);
+const isEmailCommand = args[0] === "email" && args[1] === "send";
 const flags = {
   cli: args.includes("--channel") && args[args.indexOf("--channel") + 1] === "cli",
   help: args.includes("--help") || args.includes("-h"),
@@ -126,7 +129,8 @@ async function main() {
   await cleanupOldLogs(config);
 
   // Init agent
-  const agent = new Agent(config, memory);
+  const emailSender = new EmailSender(config);
+  const agent = new Agent(config, memory, emailSender);
 
   // Decide startup mode
   let channelFilter = flags.channel;
@@ -165,7 +169,7 @@ async function main() {
 
   // Connect telegram bot to scheduler for cron messages
   if (config.channels.telegram.enabled) {
-    const { getTelegramBot, getLastTelegramChatId } = await import("./channels/telegram");
+    const { getTelegramBot } = await import("./channels/telegram");
     const bot = getTelegramBot();
     if (bot) {
       const { setTelegramBot } = await import("./core/scheduler");
@@ -194,7 +198,140 @@ async function main() {
   });
 }
 
-main().catch((err) => {
-  console.error("Fatal error:", err);
+type EmailSendCommand = {
+  to: string[];
+  subject?: string;
+  body?: string;
+  body_type?: "plain" | "html";
+  provider?: EmailProvider;
+  dry_run: boolean;
+};
+
+function parseEmailArgs(rawArgs: string[]): EmailSendCommand {
+  const result: EmailSendCommand = { to: [], dry_run: false };
+
+  for (let i = 0; i < rawArgs.length; ) {
+    const arg = rawArgs[i];
+    switch (arg) {
+      case "--dry-run":
+        result.dry_run = true;
+        i += 1;
+        break;
+      case "--to": {
+        i += 1;
+        if (i >= rawArgs.length) throw new Error("--to requires a value");
+        result.to.push(rawArgs[i]);
+        i += 1;
+        break;
+      }
+      case "--subject": {
+        i += 1;
+        if (i >= rawArgs.length) throw new Error("--subject requires a value");
+        result.subject = rawArgs[i];
+        i += 1;
+        break;
+      }
+      case "--body": {
+        i += 1;
+        if (i >= rawArgs.length) throw new Error("--body requires a value");
+        result.body = rawArgs[i];
+        i += 1;
+        break;
+      }
+      case "--body-type": {
+        i += 1;
+        if (i >= rawArgs.length) throw new Error("--body-type requires a value");
+        result.body_type = rawArgs[i] === "html" ? "html" : "plain";
+        i += 1;
+        break;
+      }
+      case "--provider": {
+        i += 1;
+        if (i >= rawArgs.length) throw new Error("--provider requires a value");
+        const value = rawArgs[i].toLowerCase();
+        if (value !== "smtp" && value !== "api") {
+          throw new Error("--provider must be smtp or api");
+        }
+        result.provider = value as EmailProvider;
+        i += 1;
+        break;
+      }
+      default:
+        throw new Error(`Unexpected argument '${arg}'`);
+    }
+  }
+
+  return result;
+}
+
+async function runEmailCommand(rawArgs: string[]) {
+  let values: EmailSendCommand;
+  try {
+    values = parseEmailArgs(rawArgs);
+  } catch (err) {
+    console.error("Error parsing command:", err instanceof Error ? err.message : err);
+    process.exit(1);
+    return;
+  }
+
+  const recipients = values.to.map((entry) => String(entry).trim()).filter((v) => v.length > 0);
+
+  if (!recipients.length) {
+    console.error("Error: --to is required");
+    process.exit(1);
+  }
+
+  const subject = typeof values.subject === "string" ? values.subject.trim() : "";
+  if (!subject) {
+    console.error("Error: --subject is required");
+    process.exit(1);
+  }
+
+  const body = typeof values.body === "string" ? values.body : "";
+  if (!body) {
+    console.error("Error: --body is required");
+    process.exit(1);
+  }
+
+  const provider = typeof values.provider === "string" ? values.provider : undefined;
+  const bodyType = values.body_type === "html" ? "html" : "plain";
+  const dryRun = Boolean(values.dry_run);
+
+  let config;
+  try {
+    config = loadConfig();
+  } catch (err) {
+    console.error("Failed to load config for email command:", err);
+    process.exit(1);
+  }
+
+  const sender = new EmailSender(config);
+  const result = await sender.send({
+    to: recipients,
+    subject,
+    body,
+    body_type: bodyType,
+    provider,
+    dry_run: dryRun
+  });
+
+  if (result.success) {
+    console.log(dryRun ? "Email preparado en seco" : "Email enviado");
+    process.exit(0);
+  }
+
+  console.error(`Email error: ${result.error ?? "UNKNOWN"}`);
   process.exit(1);
-});
+}
+
+if (isEmailCommand) {
+  runEmailCommand(args.slice(2)).catch((err) => {
+    console.error("Email command failed:", err);
+    process.exit(1);
+  });
+} else {
+  main().catch((err) => {
+    console.error("Fatal error:", err);
+    process.exit(1);
+  });
+}

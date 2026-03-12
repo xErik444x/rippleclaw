@@ -84,13 +84,13 @@ export async function startDiscord(agent: Agent, config: Config) {
         } catch {}
 
         // Discord has 2000 char limit
-        if (response.length > 1900) {
-          const chunks = response.match(/.{1,1900}/gs) || [];
+        if (response.content.length > 1900) {
+          const chunks = response.content.match(/.{1,1900}/gs) || [];
           for (const chunk of chunks) {
             await message.reply(chunk);
           }
         } else {
-          await message.reply(response);
+          await message.reply(response.content || "Done.");
         }
       } catch (err) {
         try {

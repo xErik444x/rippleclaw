@@ -56,6 +56,7 @@ Fast, autonomous AI agent optimized for low-power devices (Orange Pi, Raspberry 
 - Multi-canal - Telegram, Discord, CLI
 - Scheduler - Tareas autonomous con cron
 - Sandbox seguro - Workspace isolation
+- Email ligero - Nueva herramienta y CLI para envíos SMTP/HTTP con la configuración mínima
 - Binarios - Sin Node.js instalado
 
 ---
@@ -206,6 +207,30 @@ El archivo `config.json` se busca en:
 - **`memory.backend`**: `"json"` (recomendado) o `"none"`
 - **`workspace_only`**: Limita herramientas al directorio del workspace
 
+### Email
+
+El nuevo bloque `email` habilita envíos ligeros sin SDKs adicionales. Sólo necesitas activar `enabled`, elegir `provider` (`"smtp"` o `"api"`) y definir `default_from`; el resto se completará con valores seguros (`smtp.port: 587`, `smtp.secure: true`, `smtp.timeout_ms: 15000`). El paquete usa `nodemailer` para SMTP y `undici` para HTTP, por eso esas dependencias están incluidas en el binario.
+
+```json
+"email": {
+  "enabled": true,
+  "provider": "smtp",
+  "default_from": "Ripple <no-reply@rippleclaw.dev>",
+  "smtp": {
+    "host": "smtp.example.com",
+    "port": 587,
+    "username": "user",
+    "password": "secret",
+    "secure": true,
+    "timeout_ms": 15000
+  },
+  "api": {
+    "base_url": "https://email.api/endpoint",
+    "api_key": ""
+  }
+}
+```
+
 ---
 
 ## Canales
@@ -271,6 +296,20 @@ npm run cli
 | `/compress`   | Comprimir contexto manualmente               |
 | `/exit`       | Salir (CLI)                                  |
 | `/clear`      | Limpiar pantalla (CLI)                       |
+
+### CLI de email
+
+El comando `rippleclaw email send` usa la misma capa que `tools.emailSender`. Ejemplo:
+
+```bash
+rippleclaw email send --to user@example.com --subject "Prueba" --body "Hola" --dry-run
+```
+
+Agrega `--dry-run` para validar sin tocar la red. El CLI imprime `Email preparado en seco` o `Email enviado` y normaliza los códigos de error (`INVALID_CONFIG`, `AUTHENTICATION`, `NETWORK`, `RATE_LIMIT`).
+
+### Tool emailSender
+
+El agente dispone de la herramienta `emailSender` (definida en `tools/email.ts`). Puedes llamarla con `to`, `subject`, `body`, `body_type` (`plain` o `html`) y `attachments` (nombre + contenido). Devuelve `{ success, messageId?, error? }` y respeta los mismos códigos de error que la CLI.
 
 ---
 
@@ -466,6 +505,7 @@ src/
 - **Workspace sandbox** - Archivos/shell limitados al workspace
 - **Allowed commands** - Lista blanca de comandos permitidos
 - **Secrets** - No commitear `config.json` con API keys
+- **Email** - El logger redirige `email:send` sin mostrar credenciales (password/token enmascarados) y las dependencias `nodemailer`/`undici` están incluidas para SMTP y APIs HTTP.
 
 ### `.gitignore` recomendado
 

@@ -1,5 +1,5 @@
-import type { Tool } from "../providers/base";
 import type { MemoryStore, CronJob } from "../core/memory";
+
 
 let onCronChanged: ((id: string) => void) | null = null;
 
@@ -53,8 +53,8 @@ export function createCronTool(memory: MemoryStore) {
           if (!args.schedule) return 'Error: "schedule" is required for add';
           if (!args.prompt) return 'Error: "prompt" is required for add';
 
-          const cron = require("node-cron") as { validate: (s: string) => boolean };
-          if (!cron.validate(args.schedule)) {
+          const nodeCron = (await import("node-cron")).default;
+          if (!nodeCron.validate(args.schedule)) {
             return `Error: Invalid cron schedule "${args.schedule}". Use format: * * * * * (min hour day month weekday)`;
           }
 

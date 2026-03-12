@@ -65,7 +65,7 @@ export async function startCLI(agent: Agent, config: Config) {
       process.stdout.write("\n🌊 RippleClaw: thinking...\r");
       const response = await agent.run(input, ctx);
       process.stdout.clearLine(0);
-      console.log(`\n🌊 RippleClaw: ${response}`);
+      console.log(`\n🌊 RippleClaw: ${response.content}`);
     } catch (err) {
       console.error(`\n❌ Error: ${err}`);
     }

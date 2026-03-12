@@ -15,18 +15,31 @@ import {
   createWeatherTool,
   createSummarizeTool
 } from "../tools/index";
+import { createEmailTool } from "../tools/email";
+import type { EmailSender } from "./email";
 
 const SYSTEM_PROMPT = `You are RippleClaw, a fast and autonomous AI agent running on a low-power ARM device (Orange Pi Lite).
-You have access to tools: shell execution, file read/write, web search, weather lookup, summarize, and persistent memory notes.
+You have access to tools: shell execution, file read/write, web search, weather lookup, summarize, persistent memory notes, and environment/config management.
 Be concise. When asked to do something, do it — don't just explain how.
 Always use tools when they would help accomplish the task. Use web_search for up-to-date or external info. Use weather for weather requests. Use summarize for URL/file/video summaries or transcripts.
 You remember previous conversations via your session context and memory notes.
-Do not call env/shell/file unless the user explicitly asks about OS, cwd, workspace, or files. If you call env, include all returned fields in the reply.`;
+Do not call env/shell/file unless the user explicitly asks about OS, cwd, workspace, config, or files.
+When asked about configuration, settings, or what can be modified, ALWAYS use action="get" with include=["config"] in the env tool to see the real state before answering.
+If you call env, use action="get" to read or action="set" to update configuration. Use dot-notation for config paths (e.g., tools.web.provider) or process.env.KEY for env vars.`;
 
 export interface AgentContext {
   channel: string;
   userId: string;
   userName?: string;
+}
+
+export interface AgentResponse {
+  content: string;
+  metadata?: {
+    telegram?: {
+      reply_markup?: unknown;
+    };
+  };
 }
 
 export class Agent {
@@ -38,7 +51,7 @@ export class Agent {
     execute: (args: Record<string, unknown>) => Promise<string>;
   }[];
 
-  constructor(config: Config, memory: MemoryStore) {
+  constructor(config: Config, memory: MemoryStore, emailSender: EmailSender) {
     this.config = config;
     this.memory = memory;
     if (!Agent.toolSemaphore) {
@@ -55,6 +68,7 @@ export class Agent {
     const webTool = createWebTool(config);
     const weatherTool = createWeatherTool(config);
     const summarizeTool = createSummarizeTool(config);
+    const emailTool = createEmailTool(emailSender);
 
     this.tools = [
       {
@@ -100,7 +114,15 @@ export class Agent {
       },
       {
         definition: envTool.definition,
-        execute: (args) => envTool.execute(args as { include?: ("os" | "cwd" | "workspace")[] })
+        execute: (args) =>
+          envTool.execute(
+            args as {
+              action: "get" | "set";
+              include?: ("os" | "cwd" | "workspace" | "config")[];
+              path?: string;
+              value?: unknown;
+            }
+          )
       },
       {
         definition: webTool.definition,
@@ -123,6 +145,10 @@ export class Agent {
               json?: boolean;
             }
           )
+      },
+      {
+        definition: emailTool.definition,
+        execute: (args) => emailTool.execute(args as Record<string, unknown>)
       }
     ];
   }
@@ -133,7 +159,7 @@ export class Agent {
     session.clear();
   }
 
-  async run(input: string, ctx: AgentContext): Promise<string> {
+  async run(input: string, ctx: AgentContext): Promise<AgentResponse> {
     const lower = input.toLowerCase();
 
     // Load session FIRST to ensure all messages are saved
@@ -147,7 +173,7 @@ export class Agent {
       );
     if (isNewSessionCommand) {
       session.clear();
-      return "Listo, inicié una sesión nueva. El contexto anterior fue limpiado.";
+      return { content: "Listo, inicié una sesión nueva. El contexto anterior fue limpiado." };
     }
 
     // Detect session-related questions
@@ -176,7 +202,9 @@ export class Agent {
         input
       ) || isCompressCommand;
     const wantsEnv =
-      /(sistema operativo|os\b|windows|linux|mac|cwd|workspace|carpeta|directorio)/i.test(input);
+      /(sistema operativo|os\b|windows|linux|mac|cwd|workspace|carpeta|directorio|config|configuraci[oó]n|ajustes|settings|variable|env\b)/i.test(
+        input
+      );
     const nameChangeMatch =
       input.match(/(?:cambia(?:me)?|cambiame|quiero que cambies?)\s+mi\s+nombre\s+a\s+(.+)/i) ||
       input.match(/(?:quiero|quisiera)\s+que\s+me\s+llames?\s+(.+)/i) ||
@@ -192,7 +220,7 @@ export class Agent {
         this.memory.saveNote("name", newName);
         const response = `Guardé esto en memoria, será útil a futuro. (key: "name")\nTu nombre es ${newName}.`;
         session.addMessage("assistant", response);
-        return response;
+        return { content: response };
       }
     }
     if (nickChangeMatch && nickChangeMatch[1]) {
@@ -201,7 +229,7 @@ export class Agent {
         this.memory.saveNote("nickname", newNick);
         const response = `Listo. Me llamo ${newNick}.`;
         session.addMessage("assistant", response);
-        return response;
+        return { content: response };
       }
     }
 
@@ -213,14 +241,14 @@ export class Agent {
       const userName = fromNotes || ctx.userName || ctx.userId;
       const response = userName ? `Tu nombre es ${userName}.` : "No tengo tu nombre guardado.";
       session.addMessage("assistant", response);
-      return response;
+      return { content: response };
     }
 
     if (asksAgentName) {
       const nick = this.memory.getNote("nickname");
       const response = nick ? `Me llamo ${nick}.` : "Me llamo RippleClaw.";
       session.addMessage("assistant", response);
-      return response;
+      return { content: response };
     }
 
     if (asksAboutSession) {
@@ -230,7 +258,16 @@ export class Agent {
           ? `Sí, puedo reiniciar la sesión. ¿Quieres que lo haga ahora? (El contexto actual tiene ${sessionCount} mensajes)`
           : "La sesión ya está limpia. ¿Algo más en lo que te pueda ayudar?";
       session.addMessage("assistant", response);
-      return response;
+      return {
+        content: response,
+        metadata: {
+          telegram: {
+            reply_markup: {
+              inline_keyboard: [[{ text: "🗑️ Reiniciar Sesión", callback_data: "newsession" }]]
+            }
+          }
+        }
+      };
     }
 
     const isCompressOnly = wantsCompress && (isCompressCommand || input.trim().length <= 40);
@@ -244,8 +281,10 @@ os=${process.platform === "win32" ? "Windows" : process.platform === "darwin" ? 
 cwd=${process.cwd()}
 workspace=${this.config.workspace}
 Rules:
-- Never guess OS/cwd/workspace. Use env tool or runtime info above.
-- On OS/cwd/workspace questions, answer from env/shell or runtime info.
+- Use env tool with action="get" to read full config or runtime info.
+- Use env tool with action="set" to change config or environment variables.
+- Never guess OS/cwd/workspace/config. Use env tool or runtime info above.
+- On OS/cwd/workspace/config questions, answer from env/shell or runtime info.
 - Do not invoke env/shell/file on greetings or generic chat.`;
 
     const estimateTokens = (text: string) => Math.ceil(text.length / 4);
@@ -279,7 +318,21 @@ Rules:
         `Mensajes en sesión: ${session.getMessageCount()}`
       ].join("\n");
       session.addMessage("assistant", response);
-      return response;
+      return {
+        content: response,
+        metadata: {
+          telegram: {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: "🧹 Comprimir", callback_data: "compress" },
+                  { text: "🔄 Reset", callback_data: "newsession" }
+                ]
+              ]
+            }
+          }
+        }
+      };
     }
 
     // Compression: when tokens exceed threshold or user explicitly requests
@@ -332,7 +385,7 @@ Rules:
             ? `Listo, resumí ${msgCount - 6} mensajes en un resumen y dejé los últimos 6.`
             : "Listo, comprimí el contexto.";
         session.addMessage("assistant", response);
-        return response;
+        return { content: response };
       }
     }
 
@@ -341,6 +394,7 @@ Rules:
     const loopMessages = [...messages];
     let lastResponseContent = "";
     let hadToolCalls = false;
+    let hadEnvToolCall = false;
     let lastToolResults: string[] = [];
 
     for (let i = 0; i < 5; i++) {
@@ -385,6 +439,7 @@ Rules:
       // Execute tool calls
       const toolResults: string[] = [];
       for (const call of toolCalls) {
+        if (call.name === "env") hadEnvToolCall = true;
         const tool = this.tools.find((t) => t.definition.name === call.name);
         if (!tool) {
           toolResults.push(`Unknown tool: ${call.name}`);
@@ -447,9 +502,21 @@ Rules:
       finalResponse = toolFallback;
     }
 
+    // Special metadata for certain tool results
+    let metadata: AgentResponse["metadata"] = undefined;
+    if (hadEnvToolCall || finalResponse.includes("[env]: config=")) {
+      metadata = {
+        telegram: {
+          reply_markup: {
+            inline_keyboard: [[{ text: "⚙️ Editar Configuración", callback_data: "edit_config" }]]
+          }
+        }
+      };
+    }
+
     // Always save assistant response to session
     session.addMessage("assistant", finalResponse);
 
-    return finalResponse;
+    return { content: finalResponse, metadata };
   }
 }

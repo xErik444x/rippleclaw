@@ -54,3 +54,34 @@ export function logToolEvent(
   };
   appendFileSync(path, JSON.stringify(entry) + "\n", "utf-8");
 }
+
+function resolveEmailLogPath(config: Config): string {
+  return join(config.workspace, ".rippleclaw", "logs", "email.log");
+}
+
+export interface EmailLogDetails {
+  to: string[];
+  provider: string;
+  duration_ms: number;
+  success: boolean;
+  messageId?: string;
+  error?: string;
+  dry_run?: boolean;
+}
+
+export function logEmailSend(config: Config, details: EmailLogDetails) {
+  const path = resolveEmailLogPath(config);
+  mkdirSync(dirname(path), { recursive: true });
+  const entry = {
+    ts: new Date().toISOString(),
+    event: "email:send",
+    to: details.to,
+    provider: details.provider,
+    duration_ms: details.duration_ms,
+    success: details.success,
+    messageId: typeof details.messageId === "string" ? truncate(details.messageId) : undefined,
+    error: details.error,
+    dry_run: details.dry_run
+  };
+  appendFileSync(path, JSON.stringify(entry) + "\n", "utf-8");
+}
