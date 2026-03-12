@@ -34,6 +34,32 @@ export interface Config {
   tools: {
     shell: { enabled: boolean; allowed_commands: string[]; workspace_only: boolean };
     file: { enabled: boolean; workspace_only: boolean };
+    web: {
+      enabled: boolean;
+      provider?: "duckduckgo" | "brave" | "tavily" | "perplexity" | "searxng" | "glm";
+      api_key?: string;
+      safe_search?: "off" | "moderate" | "strict";
+      max_results?: number;
+      proxy?: string;
+      providers?: {
+        brave?: { enabled?: boolean; api_keys?: string[] };
+        tavily?: { enabled?: boolean; api_keys?: string[]; base_url?: string };
+        duckduckgo?: { enabled?: boolean };
+        perplexity?: { enabled?: boolean; api_keys?: string[] };
+        searxng?: { enabled?: boolean; base_url?: string };
+        glm?: { enabled?: boolean; api_key?: string; base_url?: string; search_engine?: string };
+      };
+    };
+    weather: {
+      enabled: boolean;
+    };
+    summarize: {
+      enabled: boolean;
+      default_model?: string;
+      default_length?: "short" | "medium" | "long" | "xl" | "xxl";
+      auto_install?: boolean;
+      install_command?: string;
+    };
   };
   runtime?: {
     max_tool_concurrency: number;
@@ -98,7 +124,14 @@ export function createDefaultConfig(): Config {
     },
     tools: {
       shell: { enabled: true, allowed_commands: ["git", "npm", "node", "ls", "cat", "grep", "find", "echo", "pwd"], workspace_only: true },
-      file: { enabled: true, workspace_only: true }
+      file: { enabled: true, workspace_only: true },
+      web: { enabled: true, provider: "duckduckgo", safe_search: "moderate" },
+      weather: { enabled: true },
+      summarize: {
+        enabled: false,
+        auto_install: true,
+        install_command: "npm i -g @steipete/summarize"
+      }
     },
     runtime: { max_tool_concurrency: 1 },
     cron: { enabled: true, jobs: [] }
@@ -139,6 +172,36 @@ export function loadConfig(configPath?: string): Config {
     _config.runtime = { max_tool_concurrency: 1 };
   } else {
     if (!_config.runtime.max_tool_concurrency) _config.runtime.max_tool_concurrency = 1;
+  }
+
+  if (!_config.tools.web) {
+    _config.tools.web = { enabled: true, provider: "duckduckgo", safe_search: "moderate" };
+  } else {
+    if (_config.tools.web.enabled === undefined) _config.tools.web.enabled = true;
+    if (!_config.tools.web.provider) _config.tools.web.provider = "duckduckgo";
+    if (!_config.tools.web.safe_search) _config.tools.web.safe_search = "moderate";
+  }
+  if (!_config.tools.web.providers) {
+    _config.tools.web.providers = { duckduckgo: { enabled: true } };
+  } else if (_config.tools.web.providers.duckduckgo === undefined) {
+    _config.tools.web.providers.duckduckgo = { enabled: true };
+  }
+  if (!_config.tools.weather) {
+    _config.tools.weather = { enabled: true };
+  }
+  if (!_config.tools.summarize) {
+    _config.tools.summarize = {
+      enabled: false,
+      auto_install: true,
+      install_command: "npm i -g @steipete/summarize"
+    };
+  } else {
+    if (_config.tools.summarize.auto_install === undefined) {
+      _config.tools.summarize.auto_install = true;
+    }
+    if (!_config.tools.summarize.install_command) {
+      _config.tools.summarize.install_command = "npm i -g @steipete/summarize";
+    }
   }
 
   return _config;

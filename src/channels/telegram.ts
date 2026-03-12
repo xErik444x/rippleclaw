@@ -52,7 +52,7 @@ export async function startTelegram(agent: Agent, config: Config) {
 
         // Remove thinking message before sending response
         await bot.deleteMessage(msg.chat.id, thinkingMsg.message_id);
-        await bot.sendMessage(msg.chat.id, response, { parse_mode: "Markdown" });
+        await bot.sendMessage(msg.chat.id, response);
       } catch (err) {
         try {
           await bot.deleteMessage(msg.chat.id, thinkingMsg.message_id);

@@ -8,13 +8,16 @@ import {
   createFileTool,
   createMemoryTool,
   createModelTool,
-  createEnvTool
+  createEnvTool,
+  createWebTool,
+  createWeatherTool,
+  createSummarizeTool
 } from "../tools/index";
 
 const SYSTEM_PROMPT = `You are RippleClaw, a fast and autonomous AI agent running on a low-power ARM device (Orange Pi Lite).
-You have access to tools: shell execution, file read/write, and persistent memory notes.
+You have access to tools: shell execution, file read/write, web search, weather lookup, summarize, and persistent memory notes.
 Be concise. When asked to do something, do it — don't just explain how.
-Always use tools when they would help accomplish the task.
+Always use tools when they would help accomplish the task. Use web_search for up-to-date or external info. Use weather for weather requests. Use summarize for URL/file/video summaries or transcripts.
 You remember previous conversations via your memory system.
 Do not call env/shell/file unless the user explicitly asks about OS, cwd, workspace, or files. If you call env, include all returned fields in the reply.`;
 
@@ -46,6 +49,9 @@ export class Agent {
     const memoryTool = createMemoryTool(memory);
     const modelTool = createModelTool(config);
     const envTool = createEnvTool(config);
+    const webTool = createWebTool(config);
+    const weatherTool = createWeatherTool(config);
+    const summarizeTool = createSummarizeTool(config);
 
     this.tools = [
       {
@@ -69,6 +75,28 @@ export class Agent {
         definition: envTool.definition,
         execute: (args) =>
           envTool.execute(args as { include?: ("os" | "cwd" | "workspace")[] })
+      },
+      {
+        definition: webTool.definition,
+        execute: (args) => webTool.execute(args as { query: string; max_results?: number })
+      },
+      {
+        definition: weatherTool.definition,
+        execute: (args) => weatherTool.execute(args as { location: string })
+      },
+      {
+        definition: summarizeTool.definition,
+        execute: (args) =>
+          summarizeTool.execute(
+            args as {
+              target: string;
+              model?: string;
+              length?: "short" | "medium" | "long" | "xl" | "xxl";
+              extract_only?: boolean;
+              youtube?: string;
+              json?: boolean;
+            }
+          )
       }
     ];
   }
@@ -237,9 +265,24 @@ Rules:
     let lastToolResults: string[] = [];
 
     for (let i = 0; i < 5; i++) {
-      const allowTools = this.config.tools.shell.enabled || this.config.tools.file.enabled;
+      const allowTools =
+        this.config.tools.shell.enabled ||
+        this.config.tools.file.enabled ||
+        this.config.tools.web?.enabled ||
+        this.config.tools.weather?.enabled ||
+        this.config.tools.summarize?.enabled;
+      const enabledToolNames = new Set<string>([
+        ...(this.config.tools.shell.enabled ? ["shell"] : []),
+        ...(this.config.tools.file.enabled ? ["file"] : []),
+        ...(this.config.tools.web?.enabled ? ["web_search"] : []),
+        ...(this.config.tools.weather?.enabled ? ["weather"] : []),
+        ...(this.config.tools.summarize?.enabled ? ["summarize"] : []),
+        "remember",
+        "model",
+        "env"
+      ]);
       const baseDefs = allowTools
-        ? this.tools.map((t) => t.definition)
+        ? this.tools.filter((t) => enabledToolNames.has(t.definition.name)).map((t) => t.definition)
         : this.tools
             .filter((t) => t.definition.name === "model" || t.definition.name === "env")
             .map((t) => t.definition);
