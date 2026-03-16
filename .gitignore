@@ -21,3 +21,9 @@ notes.json
 .test-data/
 
 **/.tmp/
+
+.agent/
+.agents/
+skills/
+
+skills-lock.json

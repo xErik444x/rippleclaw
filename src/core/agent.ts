@@ -4,6 +4,8 @@ import { SessionStore } from "./session";
 import { chat, parseToolCalls, type Message, type Tool } from "../providers/base";
 import { logToolEvent } from "./logger";
 import { Semaphore } from "./semaphore";
+import { existsSync, readdirSync, readFileSync } from "fs";
+import { join } from "path";
 import {
   createShellTool,
   createFileTool,
@@ -25,7 +27,97 @@ Always use tools when they would help accomplish the task. Use web_search for up
 You remember previous conversations via your session context and memory notes.
 Do not call env/shell/file unless the user explicitly asks about OS, cwd, workspace, config, or files.
 When asked about configuration, settings, or what can be modified, ALWAYS use action="get" with include=["config"] in the env tool to see the real state before answering.
-If you call env, use action="get" to read or action="set" to update configuration. Use dot-notation for config paths (e.g., tools.web.provider) or process.env.KEY for env vars.`;
+If you call env, use action="get" to read or action="set" to update configuration. Use dot-notation for config paths (e.g., tools.web.provider) or process.env.KEY for env vars.
+
+You can create and use **project-specific skills and runtime tools**:
+- **Skills index:** A short index of project skills is included below. If the user asks for a workflow or feature, check that index first; when a skill matches, use the file tool with action="read" and the skill path from the index to load the full instructions before acting. Do not invent the workflow if a skill already covers it.
+- **Runtime tools (binario/producción):** The folder where you can create and run your own scripts is the same as the memory backend: get it with env action="get" include=["config"] and read config.memory.path; the runtime dir is its parent (e.g. if path is /home/user/.rippleclaw/memory.json, runtime dir is /home/user/.rippleclaw). Create scripts there under a "tools" subfolder (e.g. .rippleclaw/tools/mi-check.cjs) with the file tool, then run them with shell (e.g. node /path/to/.rippleclaw/tools/mi-check.cjs). Before creating a new script, use file action="list" on that tools folder to see what already exists.
+- **Scheduling:** Use the cron tool to schedule recurring runs; in the prompt describe the exact shell command (including the full path to the .cjs script) so that when the job runs, it executes that command.
+
+**TASK LIST RULE (mandatory for any non-trivial request):** Before doing any task requested by the user, you MUST first output a numbered task list, then execute the tasks one by one. Do NOT send any final reply or summary to the user until ALL tasks in the list are completed. Use this format for the task list:
+TASK_LIST
+1. First step
+2. Second step
+3. etc
+END_TASK_LIST
+Then execute each task in order (using tools as needed). Only when every task is done, write your final reply to the user.`;
+
+let cachedSkillDocs: string | null = null;
+
+function loadProjectSkills(): string {
+  if (cachedSkillDocs !== null) return cachedSkillDocs;
+
+  type SkillIndexItem = { name: string; path: string; summary: string };
+  const items: SkillIndexItem[] = [];
+
+  const tryLoadDir = (base: string) => {
+    if (!existsSync(base)) return;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+        } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
+          try {
+            const content = readFileSync(full, "utf-8").trim();
+            if (!content) continue;
+            const lines = content.split(/\r?\n/).map((l) => l.trim());
+            const titleLine =
+              lines.find((l) => l.startsWith("#")) || lines.find((l) => l.length > 0) || "";
+            const summaryLine =
+              lines.find(
+                (l) =>
+                  l.length > 0 &&
+                  !l.startsWith("---") &&
+                  !l.toLowerCase().startsWith("name:") &&
+                  !l.toLowerCase().startsWith("description:")
+              ) || "";
+            const relName = full.replace(/^[A-Z]:/i, "").replace(/\\/g, "/");
+            const name = relName.split("/").slice(-2).join("/");
+            const summary =
+              (titleLine ? `${titleLine.replace(/^#+\s*/, "")}. ` : "") +
+              summaryLine.replace(/^[-*]\s*/, "");
+
+            items.push({
+              name,
+              path: relName,
+              summary: summary.slice(0, 200)
+            });
+          } catch {
+            // ignore read errors for individual files
+          }
+        }
+      }
+    };
+    walk(base);
+  };
+
+  // When running from compiled JS in dist/ or inside pkg snapshot, skills will be under ../skills
+  const distSkills = join(__dirname, "../skills");
+  tryLoadDir(distSkills);
+
+  // Fallback for dev: use workspace src/skills when running ts-node/tsx directly from project root
+  const cwdSkills = join(process.cwd(), "src/skills");
+  if (!items.length) {
+    tryLoadDir(cwdSkills);
+  }
+
+  if (!items.length) {
+    cachedSkillDocs = "";
+    return "";
+  }
+
+  const indexLines = items.map(
+    (it) => `- ${it.name}: ${it.summary} (file: ${it.path})`
+  );
+
+  cachedSkillDocs =
+    "\n\n# Project Skills Index\n\n" +
+    "These are project-defined skills. When relevant, use the file tool to open the corresponding markdown for full instructions instead of reinventing the workflow.\n\n" +
+    indexLines.join("\n");
+
+  return cachedSkillDocs;
+}
 
 export interface AgentContext {
   channel: string;
@@ -285,7 +377,8 @@ Rules:
 - Use env tool with action="set" to change config or environment variables.
 - Never guess OS/cwd/workspace/config. Use env tool or runtime info above.
 - On OS/cwd/workspace/config questions, answer from env/shell or runtime info.
-- Do not invoke env/shell/file on greetings or generic chat.`;
+- Do not invoke env/shell/file on greetings or generic chat.
+- Task list: Do not send any reply to the user until ALL tasks are completed. If there are tasks left, call tools for the next task instead of replying with text.`;
 
     const estimateTokens = (text: string) => Math.ceil(text.length / 4);
     const estimateMessages = (msgs: Message[]) =>
@@ -293,7 +386,8 @@ Rules:
 
     const buildMessages = (history: Message[], includeInput: boolean) => {
       const summaryBlock = summary ? `Resumen previo:\n${summary}\n` : "";
-      const systemContent = `${SYSTEM_PROMPT}\n\n${runtimeInfo}\n\n${summaryBlock}`.trim();
+      const skillsBlock = loadProjectSkills();
+      const systemContent = `${SYSTEM_PROMPT}\n\n${runtimeInfo}${skillsBlock ? `\n\n${skillsBlock}` : ""}\n\n${summaryBlock}`.trim();
       const base: Message[] = [{ role: "system", content: systemContent }, ...history];
       if (includeInput) base.push({ role: "user", content: input });
       return base;
@@ -389,7 +483,9 @@ Rules:
       }
     }
 
-    // Agentic loop: up to 5 tool call iterations
+    // Agentic loop: run until the model returns a final reply (no tool calls). Do not return to user until then.
+    const maxLoopIterations = 20;
+    const maxContextMessages = 25; // system + last N messages to avoid token overflow
     let finalResponse = "";
     const loopMessages = [...messages];
     let lastResponseContent = "";
@@ -397,41 +493,59 @@ Rules:
     let hadEnvToolCall = false;
     let lastToolResults: string[] = [];
 
-    for (let i = 0; i < 5; i++) {
-      const allowTools =
-        this.config.tools.shell.enabled ||
-        this.config.tools.file.enabled ||
-        this.config.tools.web?.enabled ||
-        this.config.tools.weather?.enabled ||
-        this.config.tools.summarize?.enabled;
-      const enabledToolNames = new Set<string>([
-        ...(this.config.tools.shell.enabled ? ["shell"] : []),
-        ...(this.config.tools.file.enabled ? ["file"] : []),
-        ...(this.config.tools.web?.enabled ? ["web_search"] : []),
-        ...(this.config.tools.weather?.enabled ? ["weather"] : []),
-        ...(this.config.tools.summarize?.enabled ? ["summarize"] : []),
-        "remember",
-        "cron",
-        "model",
-        "env"
-      ]);
-      const baseDefs = allowTools
-        ? this.tools.filter((t) => enabledToolNames.has(t.definition.name)).map((t) => t.definition)
-        : this.tools
-            .filter((t) => t.definition.name === "model" || t.definition.name === "env")
-            .map((t) => t.definition);
-      const toolDefs = wantsEnv ? baseDefs : baseDefs.filter((d) => d.name !== "env");
+    const trimLoopMessages = (msgs: Message[]): Message[] => {
+      if (msgs.length <= maxContextMessages) return msgs;
+      const system = msgs[0];
+      const rest = msgs.slice(1);
+      const tail = rest.slice(-(maxContextMessages - 1));
+      return [system, ...tail];
+    };
 
-      const response = await chat(this.config, loopMessages, {
-        tools: toolDefs.length ? toolDefs : undefined
-      });
+    const toolsConfig = this.config.tools;
+    const allowTools =
+      toolsConfig?.shell?.enabled ||
+      toolsConfig?.file?.enabled ||
+      toolsConfig?.web?.enabled ||
+      toolsConfig?.weather?.enabled ||
+      toolsConfig?.summarize?.enabled;
+    const enabledToolNames = new Set<string>([
+      ...(toolsConfig?.shell?.enabled ? ["shell"] : []),
+      ...(toolsConfig?.file?.enabled ? ["file"] : []),
+      ...(toolsConfig?.web?.enabled ? ["web_search"] : []),
+      ...(toolsConfig?.weather?.enabled ? ["weather"] : []),
+      ...(toolsConfig?.summarize?.enabled ? ["summarize"] : []),
+      "remember",
+      "cron",
+      "model",
+      "env"
+    ]);
+    const baseDefs = allowTools
+      ? this.tools.filter((t) => enabledToolNames.has(t.definition.name)).map((t) => t.definition)
+      : this.tools
+          .filter((t) => t.definition.name === "model" || t.definition.name === "env")
+          .map((t) => t.definition);
+
+    for (let i = 0; i < maxLoopIterations; i++) {
+      const toolDefs = wantsEnv ? baseDefs : baseDefs.filter((d) => d.name !== "env");
+      const toSend = trimLoopMessages(loopMessages);
+
+      let response: Awaited<ReturnType<typeof chat>>;
+      try {
+        response = await chat(this.config, toSend, {
+          tools: toolDefs.length ? toolDefs : undefined
+        });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        finalResponse = `Error al llamar al modelo: ${errMsg}. Intenta de nuevo.`;
+        break;
+      }
 
       lastResponseContent = response.content;
       const toolCalls = parseToolCalls(response.content);
 
-      if (!toolCalls) {
-        // Final text response
-        finalResponse = response.content;
+      if (!toolCalls || toolCalls.length === 0) {
+        // Final text response (empty array from parseToolCalls counts as "no tools")
+        finalResponse = response.content?.trim() || lastResponseContent;
         break;
       }
       hadToolCalls = true;
@@ -482,9 +596,15 @@ Rules:
     }
 
     if (!finalResponse && hadToolCalls) {
-      const final = await chat(this.config, loopMessages);
-      finalResponse = final.content;
-      lastResponseContent = final.content || lastResponseContent;
+      try {
+        const toSend = trimLoopMessages(loopMessages);
+        const final = await chat(this.config, toSend);
+        finalResponse = final.content?.trim() || "";
+        lastResponseContent = final.content || lastResponseContent;
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        finalResponse = `Error al obtener respuesta final: ${errMsg}. Resultados de las últimas herramientas:\n${lastToolResults.join("\n")}`;
+      }
     }
 
     const toolFallback = lastToolResults.length
@@ -492,13 +612,14 @@ Rules:
       : "";
 
     if (!finalResponse)
-      finalResponse = lastResponseContent || toolFallback || "I completed the requested actions.";
+      finalResponse = lastResponseContent || toolFallback || "Completé las acciones solicitadas.";
 
-    if (
-      toolFallback &&
-      (finalResponse.startsWith("Calling tools:") ||
-        finalResponse === "I completed the requested actions.")
-    ) {
+    // Only replace with raw tool results when the model returned a placeholder, not a real reply
+    const isPlaceholderReply =
+      finalResponse.startsWith("Calling tools:") ||
+      finalResponse === "I completed the requested actions." ||
+      finalResponse === "Completé las acciones solicitadas.";
+    if (toolFallback && isPlaceholderReply) {
       finalResponse = toolFallback;
     }
 
