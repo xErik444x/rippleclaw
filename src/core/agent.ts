@@ -5,7 +5,7 @@ import { chat, parseToolCalls, type Message, type Tool } from "../providers/base
 import { logToolEvent } from "./logger";
 import { Semaphore } from "./semaphore";
 import { existsSync, readdirSync, readFileSync } from "fs";
-import { join } from "path";
+import { dirname, join } from "path";
 import {
   createShellTool,
   createFileTool,
@@ -43,15 +43,18 @@ END_TASK_LIST
 Then execute each task in order (using tools as needed). Only when every task is done, write your final reply to the user.`;
 
 let cachedSkillDocs: string | null = null;
+let cachedSkillKey: string = "";
 
-function loadProjectSkills(): string {
-  if (cachedSkillDocs !== null) return cachedSkillDocs;
+function loadProjectSkills(config: Config): string {
+  const runtimeDir = config.memory?.path ? dirname(config.memory.path) : "";
+  const cacheKey = runtimeDir;
+  if (cachedSkillDocs !== null && cachedSkillKey === cacheKey) return cachedSkillDocs;
 
   type SkillIndexItem = { name: string; path: string; summary: string };
   const items: SkillIndexItem[] = [];
 
   const tryLoadDir = (base: string) => {
-    if (!existsSync(base)) return;
+    if (!base || !existsSync(base)) return;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const full = join(dir, entry.name);
@@ -80,7 +83,7 @@ function loadProjectSkills(): string {
 
             items.push({
               name,
-              path: relName,
+              path: full,
               summary: summary.slice(0, 200)
             });
           } catch {
@@ -92,18 +95,21 @@ function loadProjectSkills(): string {
     walk(base);
   };
 
-  // When running from compiled JS in dist/ or inside pkg snapshot, skills will be under ../skills
-  const distSkills = join(__dirname, "../skills");
-  tryLoadDir(distSkills);
-
-  // Fallback for dev: use workspace src/skills when running ts-node/tsx directly from project root
-  const cwdSkills = join(process.cwd(), "src/skills");
-  if (!items.length) {
-    tryLoadDir(cwdSkills);
+  // 1) Runtime/config folder (e.g. .rippleclaw/skills) — skills added by user or agent in production
+  if (runtimeDir) {
+    tryLoadDir(join(runtimeDir, "skills"));
   }
+
+  // 2) Bundled assets: from dist/ or pkg snapshot, assets are at ../src/skills (package.json "assets": "src/skills/**/*.md")
+  const bundledSkills = join(__dirname, "../src/skills");
+  tryLoadDir(bundledSkills);
+
+  // 3) Dev fallback: run from repo root (tsx/node dist/daemon.js)
+  tryLoadDir(join(process.cwd(), "src/skills"));
 
   if (!items.length) {
     cachedSkillDocs = "";
+    cachedSkillKey = cacheKey;
     return "";
   }
 
@@ -115,6 +121,7 @@ function loadProjectSkills(): string {
     "\n\n# Project Skills Index\n\n" +
     "These are project-defined skills. When relevant, use the file tool to open the corresponding markdown for full instructions instead of reinventing the workflow.\n\n" +
     indexLines.join("\n");
+  cachedSkillKey = cacheKey;
 
   return cachedSkillDocs;
 }
@@ -386,7 +393,7 @@ Rules:
 
     const buildMessages = (history: Message[], includeInput: boolean) => {
       const summaryBlock = summary ? `Resumen previo:\n${summary}\n` : "";
-      const skillsBlock = loadProjectSkills();
+      const skillsBlock = loadProjectSkills(this.config);
       const systemContent = `${SYSTEM_PROMPT}\n\n${runtimeInfo}${skillsBlock ? `\n\n${skillsBlock}` : ""}\n\n${summaryBlock}`.trim();
       const base: Message[] = [{ role: "system", content: systemContent }, ...history];
       if (includeInput) base.push({ role: "user", content: input });
