@@ -9,6 +9,25 @@ let telegramBotInstance: TelegramBot | null = null;
 
 const pendingEdits = new Map<number, string>(); // chatId -> configPath
 
+async function sendSafeMessage(
+  bot: TelegramBot,
+  chatId: number,
+  text: string,
+  options: SendMessageOptions = {}
+): Promise<TelegramBot.Message> {
+  try {
+    return await bot.sendMessage(chatId, text, options);
+  } catch (err: any) {
+    if (err.message && err.message.toLowerCase().includes("parse")) {
+      console.warn(`[Telegram] Markdown parse error. Falling back to plain text.`);
+      const safeOptions = { ...options };
+      delete safeOptions.parse_mode;
+      return await bot.sendMessage(chatId, text, safeOptions);
+    }
+    throw err;
+  }
+}
+
 function renderConfigMenu(config: Config, path: string = ""): { text: string; reply_markup: InlineKeyboardMarkup } {
   const parts = path ? path.split(".") : [];
   let current: unknown = config;
@@ -183,7 +202,7 @@ export async function startTelegram(agent: Agent, config: Config) {
           options.reply_markup = response.metadata.telegram.reply_markup as any;
         }
 
-        await bot.sendMessage(msg.chat.id, response.content, options);
+        await sendSafeMessage(bot, msg.chat.id, response.content, options);
       } catch (err) {
         try {
           await bot.deleteMessage(msg.chat.id, thinkingMsg.message_id);
@@ -286,7 +305,7 @@ export async function startTelegram(agent: Agent, config: Config) {
         options.reply_markup = response.metadata.telegram.reply_markup as any;
       }
 
-      await bot.sendMessage(query.message.chat.id, response.content, options);
+      await sendSafeMessage(bot, query.message.chat.id, response.content, options);
     } catch (err) {
       console.error("[Telegram] Callback error:", err);
       await bot.sendMessage(query.message.chat.id, `❌ Action error: ${err}`);
