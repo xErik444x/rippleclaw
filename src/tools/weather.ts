@@ -42,29 +42,29 @@ async function fetchOpenMeteo(lat: number, lon: number) {
 
 function weatherCodeToText(code: number): string {
   const map: Record<number, string> = {
-    0: "Despejado",
-    1: "Mayormente despejado",
-    2: "Parcialmente nublado",
-    3: "Nublado",
-    45: "Niebla",
-    48: "Niebla con escarcha",
-    51: "Llovizna leve",
-    53: "Llovizna moderada",
-    55: "Llovizna intensa",
-    61: "Lluvia leve",
-    63: "Lluvia moderada",
-    65: "Lluvia intensa",
-    71: "Nieve leve",
-    73: "Nieve moderada",
-    75: "Nieve intensa",
-    80: "Chubascos leves",
-    81: "Chubascos moderados",
-    82: "Chubascos intensos",
-    95: "Tormenta",
-    96: "Tormenta con granizo leve",
-    99: "Tormenta con granizo fuerte"
+    0: "Clear",
+    1: "Mostly clear",
+    2: "Partially cloudy",
+    3: "Cloudy",
+    45: "Fog",
+    48: "Frost fog",
+    51: "Light drizzle",
+    53: "Moderate drizzle",
+    55: "Dense drizzle",
+    61: "Light rain",
+    63: "Moderate rain",
+    65: "Heavy rain",
+    71: "Light snow",
+    73: "Moderate snow",
+    75: "Heavy snow",
+    80: "Light showers",
+    81: "Moderate showers",
+    82: "Heavy showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm with light hail",
+    99: "Thunderstorm with heavy hail"
   };
-  return map[code] || `Código ${code}`;
+  return map[code] || `Code ${code}`;
 }
 
 function encodeWttrLocation(loc: string): string {
@@ -171,7 +171,7 @@ export function createWeatherTool(config: Config) {
       }
 
       const places = await geocodeOpenMeteo(args.location, 1);
-      if (!places.length) return "No se encontró la ubicación.";
+      if (!places.length) return "Location not found.";
       const place = places[0];
       const data = await fetchOpenMeteo(place.latitude, place.longitude);
 
@@ -183,19 +183,19 @@ export function createWeatherTool(config: Config) {
 
       const placeLabel = [place.name, place.admin1, place.country].filter(Boolean).join(", ");
       const lines: string[] = [];
-      lines.push(`Clima en ${placeLabel}`);
+      lines.push(`Weather in ${placeLabel}`);
       if (now) {
         lines.push(
-          `Ahora: ${Math.round(now.temperature)}°C, ${weatherCodeToText(now.weathercode)}, viento ${Math.round(
+          `Now: ${Math.round(now.temperature)}°C, ${weatherCodeToText(now.weathercode)}, wind ${Math.round(
             now.windspeed
           )} km/h`
         );
       }
       if (max !== undefined && min !== undefined) {
-        const rainText = rain !== undefined ? `, precipitación ${rain} mm` : "";
-        lines.push(`Hoy: mín ${Math.round(min)}°C / máx ${Math.round(max)}°C${rainText}`);
+        const rainText = rain !== undefined ? `, precipitation ${rain} mm` : "";
+        lines.push(`Today: min ${Math.round(min)}°C / max ${Math.round(max)}°C${rainText}`);
       }
-      if (data.timezone) lines.push(`Zona horaria: ${data.timezone}`);
+      if (data.timezone) lines.push(`Timezone: ${data.timezone}`);
 
       return lines.join("\n");
     }

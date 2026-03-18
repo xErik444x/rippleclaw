@@ -70,7 +70,7 @@ export async function startDiscord(agent: Agent, config: Config) {
         await typingChannel.sendTyping();
       }
 
-      const thinkingMsg = await message.reply("🤔 Pensando...");
+      const thinkingMsg = await message.reply("🤔 Thinking...");
 
       try {
         const response = await agent.run(text, {

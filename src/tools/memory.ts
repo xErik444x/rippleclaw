@@ -43,7 +43,7 @@ export function createMemoryTool(memory: import("../core/memory").MemoryStore) {
           }
           const normalizedKey = args.key.trim();
           memory.saveNote(normalizedKey, args.value);
-          return `Guardé esto en memoria, será útil a futuro. (key: "${normalizedKey}")`;
+          return `Saved to memory for future reference. (key: "${normalizedKey}")`;
         }
         case "get": {
           if (typeof args.key !== "string" || !args.key.trim()) {
@@ -83,8 +83,8 @@ export function createMemoryTool(memory: import("../core/memory").MemoryStore) {
           const normalizedKey = args.key.trim();
           const deleted = memory.deleteNote(normalizedKey);
           return deleted
-            ? `Nota "${normalizedKey}" eliminada.`
-            : `No se encontró nota con key "${normalizedKey}".`;
+            ? `Note "${normalizedKey}" deleted.`
+            : `No note found with key "${normalizedKey}".`;
         }
         default:
           return `Error: Unsupported action "${args.action}"`;

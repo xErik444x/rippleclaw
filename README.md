@@ -2,71 +2,80 @@
 
 Fast, autonomous AI agent optimized for low-power devices (Orange Pi, Raspberry Pi, etc.)
 
+## Why RippleClaw?
+
+RippleClaw was born as a learning project. I wanted something lightweight and custom, inspired by **OpenClaw**, but that I could call my own and build from the ground up to understand exactly how every piece of the puzzle fits together.
+
+The name "**Ripple**" has a special meaning for me: it's the name I assign to all my projects, and it's inspired by a character from the *Mahou Shoujo* anime series. This project is the culmination of that learning journey, designed to run on a spare Orange Pi lite with 1GB of RAM without breaking a sweat, while giving you full control over your AI assistants.
+
 [![GitHub Release](https://img.shields.io/github/v/release/xErik444x/rippleclaw)](https://github.com/xErik444x/rippleclaw/releases)
 [![Build](https://github.com/xErik444x/rippleclaw/actions/workflows/release.yml/badge.svg)](https://github.com/xErik444x/rippleclaw/actions)
 
 ---
 
-## Tabla de Contenidos
+## Table of Contents
 
 - [RippleClaw](#rippleclaw)
-  - [Tabla de Contenidos](#tabla-de-contenidos)
-  - [Caracteristicas](#caracteristicas)
-  - [Inicio Rapido](#inicio-rapido)
-    - [Opción 1: Binario (más rápido)](#opción-1-binario-más-rápido)
-    - [Opción 2: Desde código fuente](#opción-2-desde-código-fuente)
-  - [Instalacion](#instalacion)
-    - [Desde código fuente](#desde-código-fuente)
-    - [Binario precompilado](#binario-precompilado)
-  - [Configuracion](#configuracion)
-    - [Ejemplo completo](#ejemplo-completo)
-    - [Notas](#notas)
-  - [Canales](#canales)
+  - [Why RippleClaw?](#why-rippleclaw)
+  - [Features](#features)
+  - [Quick Start](#quick-start)
+    - [Option 1: Binary (fastest)](#option-1-binary-fastest)
+    - [Option 2: From source code](#option-2-from-source-code)
+  - [Installation](#installation)
+    - [From source code](#from-source-code)
+    - [Precompiled binary](#precompiled-binary)
+  - [Configuration](#configuration)
+    - [Full example](#full-example)
+    - [Notes](#notes)
+    - [Email](#email)
+  - [Channels](#channels)
     - [Telegram](#telegram)
     - [Discord](#discord)
     - [CLI](#cli)
-  - [Comandos](#comandos)
-  - [Memoria y Contexto](#memoria-y-contexto)
-    - [Comandos de memoria (desde el chat)](#comandos-de-memoria-desde-el-chat)
-    - [Compresión automática](#compresión-automática)
-  - [Build Manual](#build-manual)
+  - [Commands](#commands)
+    - [Email CLI](#email-cli)
+    - [emailSender Tool](#emailsender-tool)
+  - [Memory and Context](#memory-and-context)
+    - [Memory commands (from chat)](#memory-commands-from-chat)
+    - [Automatic compression](#automatic-compression)
+  - [Manual Build](#manual-build)
     - [Windows](#windows)
     - [Linux x64](#linux-x64)
     - [Linux ARM64 (Orange Pi, Raspberry Pi)](#linux-arm64-orange-pi-raspberry-pi)
     - [GitHub Actions](#github-actions)
   - [Cron Jobs](#cron-jobs)
-    - [Comandos desde el chat](#comandos-desde-el-chat)
-    - [Formato de schedule (cron)](#formato-de-schedule-cron)
-    - [Configuracion estatica (alternativo)](#configuracion-estatica-alternativo)
-  - [Service Linux](#service-linux)
-  - [Desarrollo](#desarrollo)
-    - [Estructura del proyecto](#estructura-del-proyecto)
-  - [Seguridad](#seguridad)
-    - [`.gitignore` recomendado](#gitignore-recomendado)
-  - [📄 Licencia](#-licencia)
+    - [Commands from chat](#commands-from-chat)
+    - [Schedule format (cron)](#schedule-format-cron)
+    - [Static configuration (alternative)](#static-configuration-alternative)
+  - [Linux Service](#linux-service)
+  - [Development](#development)
+    - [Project structure](#project-structure)
+  - [Security](#security)
+    - [Recommended .gitignore](#recommended-gitignore)
+  - [📄 License](#-license)
 
 ---
 
-## Caracteristicas
+## Features
 
-- Ligero - Optimizado para dispositivos de bajo consumo
-- Memoria persistente - JSON storage con busqueda
-- Herramientas - Shell, archivos, memoria, clima, web
-- Multi-provider - OpenAI, Gemini, Groq, OpenRouter
-- Multi-canal - Telegram, Discord, CLI
-- Scheduler - Tareas autonomous con cron
-- Sandbox seguro - Workspace isolation
-- Email ligero - Nueva herramienta y CLI para envíos SMTP/HTTP con la configuración mínima
-- Binarios - Sin Node.js instalado
+- **Lightweight** - Optimized for low-consumption devices.
+- **Persistent Memory** - JSON storage with search capabilities.
+- **Tools** - Shell, files, memory, weather, web.
+- **Multi-provider** - OpenAI, Gemini, Groq, OpenRouter.
+- **Multi-channel** - Telegram, Discord, CLI.
+- **Scheduler** - Autonomous tasks with cron.
+- **Secure Sandbox** - Workspace isolation.
+- **Lightweight Email** - New tool and CLI for SMTP/HTTP sending with minimal configuration.
+- **Binaries** - Runs without Node.js installed.
 
 ---
 
-## Inicio Rapido
+## Quick Start
 
-### Opción 1: Binario (más rápido)
+### Option 1: Binary (fastest)
 
 ```bash
-# Descargar de Releases:
+# Download from Releases:
 # https://github.com/xErik444x/rippleclaw/releases
 
 # Windows
@@ -77,7 +86,7 @@ chmod +x rippleclaw
 ./rippleclaw
 ```
 
-### Opción 2: Desde código fuente
+### Option 2: From source code
 
 ```bash
 git clone https://github.com/xErik444x/rippleclaw.git
@@ -89,46 +98,46 @@ npm start
 
 ---
 
-## Instalacion
+## Installation
 
-### Desde código fuente
+### From source code
 
 ```bash
-# Clonar el repo
+# Clone the repo
 git clone https://github.com/xErik444x/rippleclaw.git
 cd rippleclaw
 
-# Instalar dependencias
+# Install dependencies
 npm install
 
-# Build de desarrollo
+# Development build
 npm run build
 
-# Iniciar (requiere config.json)
+# Start (requires config.json)
 npm start
 ```
 
-### Binario precompilado
+### Precompiled binary
 
-1. Ir a [Releases](https://github.com/xErik444x/rippleclaw/releases)
-2. Descargar el binario para tu plataforma:
+1. Go to [Releases](https://github.com/xErik444x/rippleclaw/releases)
+2. Download the binary for your platform:
    - `rippleclaw-win-x64.exe` - Windows
    - `rippleclaw-linux-x64` - Linux x64
-3. Para ARM (Raspberry Pi / Orange Pi), ver [Build Manual](#linux-arm64-orange-pi-raspberry-pi)
-4. Copiar `config.json` junto al binario
-5. Ejecutar
+3. For ARM (Raspberry Pi / Orange Pi), see [Manual Build](#linux-arm64-orange-pi-raspberry-pi)
+4. Copy `config.json` next to the binary.
+5. Execute.
 
 ---
 
-## Configuracion
+## Configuration
 
-El archivo `config.json` se busca en:
+The `config.json` file is searched in:
 
 1. `./config.json` (local)
 2. `$RIPPLECLAW_CONFIG`
 3. `~/.rippleclaw/config.json`
 
-### Ejemplo completo
+### Full example
 
 ```json
 {
@@ -146,21 +155,21 @@ El archivo `config.json` se busca en:
     {
       "name": "openai",
       "api_base": "https://api.openai.com/v1",
-      "api_key": "sk-tu-api-key-aqui",
+      "api_key": "sk-your-api-key-here",
       "models": ["gpt-4o", "gpt-4o-mini"]
     },
     {
       "name": "openrouter",
       "api_base": "https://openrouter.ai/api/v1",
-      "api_key": "tu-key-aqui",
+      "api_key": "your-key-here",
       "models": ["openrouter/auto"]
     }
   ],
   "channels": {
     "telegram": {
       "enabled": true,
-      "token": "TU_BOT_TOKEN",
-      "allowed_users": ["tu_user_id"]
+      "token": "YOUR_BOT_TOKEN",
+      "allowed_users": ["your_user_id"]
     },
     "discord": {
       "enabled": false,
@@ -201,15 +210,15 @@ El archivo `config.json` se busca en:
 }
 ```
 
-### Notas
+### Notes
 
-- **`allowed_users`**: Soporta user ID, username, o `"*"` para permitir todos
-- **`memory.backend`**: `"json"` (recomendado) o `"none"`
-- **`workspace_only`**: Limita herramientas al directorio del workspace
+- **`allowed_users`**: Supports user ID, username, or `"*"` to allow everyone.
+- **`memory.backend`**: `"json"` (recommended) or `"none"`.
+- **`workspace_only`**: Limits tools to the workspace directory.
 
 ### Email
 
-El nuevo bloque `email` habilita envíos ligeros sin SDKs adicionales. Sólo necesitas activar `enabled`, elegir `provider` (`"smtp"` o `"api"`) y definir `default_from`; el resto se completará con valores seguros (`smtp.port: 587`, `smtp.secure: true`, `smtp.timeout_ms: 15000`). El paquete usa `nodemailer` para SMTP y `undici` para HTTP, por eso esas dependencias están incluidas en el binario.
+The new `email` block enables lightweight sending without additional SDKs. You only need to activate `enabled`, choose `provider` (`"smtp"` or `"api"`) and define `default_from`; the rest will be completed with safe defaults (`smtp.port: 587`, `smtp.secure: true`, `smtp.timeout_ms: 15000`). The package uses `nodemailer` for SMTP and `undici` for HTTP, so those dependencies are included in the binary.
 
 ```json
 "email": {
@@ -233,44 +242,44 @@ El nuevo bloque `email` habilita envíos ligeros sin SDKs adicionales. Sólo nec
 
 ---
 
-## Canales
+## Channels
 
 ### Telegram
 
-1. Crear bot con [@BotFather](https://t.me/BotFather)
-2. Obtener el token
-3. Obtener tu user ID (enviá `/start` a @userinfobot)
-4. Configurar en `config.json`:
+1. Create a bot with [@BotFather](https://t.me/BotFather).
+2. Obtain the token.
+3. Get your user ID (send `/start` to @userinfobot).
+4. Configure in `config.json`:
 
 ```json
 "telegram": {
   "enabled": true,
-  "token": "TU_TOKEN",
-  "allowed_users": ["TU_USER_ID"]
+  "token": "YOUR_TOKEN",
+  "allowed_users": ["YOUR_USER_ID"]
 }
 ```
 
-5. Comandos disponibles (autocompletado):
-   - `/start` - Iniciar el bot
-   - `/help` - Mostrar ayuda
-   - `/newsession` - Reiniciar sesión
-   - `/status` - Ver estado
-   - `/compress` - Comprimir contexto
+5. Available commands (autocomplete):
+   - `/start` - Start the bot
+   - `/help` - Show help
+   - `/newsession` - Restart session
+   - `/status` - View status
+   - `/compress` - Compress context
 
 ### Discord
 
-1. Crear app en [Discord Developer Portal](https://discord.com/developers/applications)
-2. Crear bot y obtener token
-3. Habilitar Message Content Intent
-4. Invitar bot con permisos:
+1. Create an app in the [Discord Developer Portal](https://discord.com/developers/applications).
+2. Create a bot and obtain the token.
+3. Enable "Message Content Intent".
+4. Invite the bot with permissions:
    - Send Messages
    - Read Message History
-5. Configurar:
+5. Configure:
 
 ```json
 "discord": {
   "enabled": true,
-  "token": "TU_TOKEN",
+  "token": "YOUR_TOKEN",
   "allowed_users": []
 }
 ```
@@ -279,73 +288,73 @@ El nuevo bloque `email` habilita envíos ligeros sin SDKs adicionales. Sólo nec
 
 ```bash
 npm run cli
-# o con binario
+# or with binary
 ./rippleclaw --channel cli
 ```
 
 ---
 
-## Comandos
+## Commands
 
-| Comando       | Descripción                                  |
+| Command       | Description                                  |
 | ------------- | -------------------------------------------- |
-| `/start`      | Iniciar bot (Telegram)                       |
-| `/help`       | Mostrar ayuda                                |
-| `/newsession` | Reiniciar sesión / olvidar contexto          |
-| `/status`     | Ver estado actual (modelo, tokens, mensajes) |
-| `/compress`   | Comprimir contexto manualmente               |
-| `/exit`       | Salir (CLI)                                  |
-| `/clear`      | Limpiar pantalla (CLI)                       |
+| `/start`      | Start bot (Telegram)                         |
+| `/help`       | Show help                                    |
+| `/newsession` | Restart session / forget context             |
+| `/status`     | View current status (model, tokens, messages)|
+| `/compress`   | Manually compress context                    |
+| `/exit`       | Exit (CLI)                                   |
+| `/clear`      | Clear screen (CLI)                           |
 
-### CLI de email
+### Email CLI
 
-El comando `rippleclaw email send` usa la misma capa que `tools.emailSender`. Ejemplo:
+The `rippleclaw email send` command uses the same layer as `tools.emailSender`. Example:
 
 ```bash
-rippleclaw email send --to user@example.com --subject "Prueba" --body "Hola" --dry-run
+rippleclaw email send --to user@example.com --subject "Test" --body "Hello" --dry-run
 ```
 
-Agrega `--dry-run` para validar sin tocar la red. El CLI imprime `Email preparado en seco` o `Email enviado` y normaliza los códigos de error (`INVALID_CONFIG`, `AUTHENTICATION`, `NETWORK`, `RATE_LIMIT`).
+Add `--dry-run` to validate without touching the network. The CLI prints `Email dry-run successful` or `Email sent` and normalizes error codes (`INVALID_CONFIG`, `AUTHENTICATION`, `NETWORK`, `RATE_LIMIT`).
 
-### Tool emailSender
+### emailSender Tool
 
-El agente dispone de la herramienta `emailSender` (definida en `tools/email.ts`). Puedes llamarla con `to`, `subject`, `body`, `body_type` (`plain` o `html`) y `attachments` (nombre + contenido). Devuelve `{ success, messageId?, error? }` y respeta los mismos códigos de error que la CLI.
+The agent has the `emailSender` tool (defined in `tools/email.ts`). You can call it with `to`, `subject`, `body`, `body_type` (`plain` or `html`), and `attachments` (name + content). It returns `{ success, messageId?, error? }` and respects the same error codes as the CLI.
 
 ---
 
-## Memoria y Contexto
+## Memory and Context
 
-RippleClaw maneja la memoria en dos niveles:
+RippleClaw handles memory at two levels:
 
-1. **Sesión** - Historial de mensajes (archivos JSON en `~/.rippleclaw/sessions/`)
-2. **Notas** - Datos persistentes (keywords guardados)
+1. **Session** - Message history (JSON files in `~/.rippleclaw/sessions/`).
+2. **Notes** - Persistent data (saved keywords).
 
-### Comandos de memoria (desde el chat)
+### Memory commands (from chat)
 
 ```bash
-# Guardar algo en memoria
-"Recordá que mi nombre es Erik"
+# Save something to memory
+"Remember that my name is Erik"
 
-# Ver valor
-"Cómo me llamo?"
+# View value
+"What is my name?"
 
-# Cambiar nombre del bot
-"Te voy a llamar Clown"
+# Change bot name
+"I'm going to call you Clown"
 ```
 
-### Compresión automática
+### Automatic compression
 
-Cuando el contexto supera el 85% del límite, automáticamente:
+When context exceeds 85% of the limit, it automatically:
 
-1. Resume la conversación
-2. Guarda el resumen
-3. Elimina mensajes antiguos
+1. Summarizes the conversation.
+2. Saves the summary.
+3. Removes old messages.
 
-Forzar compresión: `/compress`
+Force compression: `/compress`.
 
 ---
 
-## Build Manual
+## Manual Build
 
 ### Windows
 
@@ -368,69 +377,66 @@ npm run build:bin:linux-x64
 ```bash
 npm install
 npm run build:bin:linux-arm64
-
 ```
 
 ### GitHub Actions
 
-El workflow `.github/workflows/release.yml` construye automaticamente:
+The `.github/workflows/release.yml` workflow automatically builds:
 
 - `rippleclaw-linux-x64`
 - `rippleclaw-win-x64.exe`
 
-Para ARM, ver seccion [Linux ARM64](#linux-arm64-orange-pi-raspberry-pi).
-
-Se ejecuta en push a `main` y crea un release con los binarios.
+For ARM, see the [Linux ARM64](#linux-arm64-orange-pi-raspberry-pi) section. It runs on push to `main` and creates a release with the binaries.
 
 ---
 
 ## Cron Jobs
 
-Los cron jobs se gestionan desde el chat usando la herramienta `cron`. Los jobs se guardan en memoria y persisten entre sesiones.
+Cron jobs are managed from chat using the `cron` tool. Jobs are saved in memory and persist between sessions.
 
-### Comandos desde el chat
+### Commands from chat
 
 ```
-# Listar todos los cron jobs
-"列出 mis cron jobs" o usa la tool cron action=list
+# List all cron jobs
+"List my cron jobs" or use tool cron action=list
 
-# Crear un cron job
-"Agrega un cron job llamado resumen-diario a las 9am que diga Dame un resumen de lo que trabajaste ayer"
+# Create a cron job
+"Add a cron job named daily-summary at 9am that says Give me a summary of what you worked on yesterday"
 
-# Eliminar un cron job
-"Borra el cron job resumen-diario"
+# Delete a cron job
+"Delete the cron job daily-summary"
 
-# Habilitar/deshabilitar
-"Habilita el cron job resumen-diario"
-"Deshabilita el cron job resumen-diario"
+# Enable/disable
+"Enable the cron job daily-summary"
+"Disable the cron job daily-summary"
 
-# Ver un job especifico
-"Muestra el cron job recordatorio"
+# View a specific job
+"Show the cron job reminder"
 ```
 
-### Formato de schedule (cron)
+### Schedule format (cron)
 
-| Expresion      | Descripcion                |
+| Expression     | Description                |
 | -------------- | -------------------------- |
-| `0 9 * * *`    | Todos los dias a las 9:00  |
-| `0 9 * * 1-5`  | Lunes a viernes a las 9:00 |
-| `*/15 * * * *` | Cada 15 minutos            |
-| `0 * * * *`    | Cada hora                  |
+| `0 9 * * *`    | Every day at 9:00          |
+| `0 9 * * 1-5`  | Monday to Friday at 9:00   |
+| `*/15 * * * *` | Every 15 minutes           |
+| `0 * * * *`    | Every hour                 |
 
-Formatos: `minuto hora dia mes dia_semana`
+Formats: `minute hour day month day_of_week`
 
-### Configuracion estatica (alternativo)
+### Static configuration (alternative)
 
-Tambien puedes definir jobs estaticos en `config.json`:
+You can also define static jobs in `config.json`:
 
 ```json
 "cron": {
   "enabled": true,
   "jobs": [
     {
-      "id": "resumen-diario",
+      "id": "daily-summary",
       "schedule": "0 9 * * *",
-      "prompt": "Dame un resumen de lo que trabajaste ayer"
+      "prompt": "Give me a summary of what you worked on yesterday"
     }
   ]
 }
@@ -438,40 +444,40 @@ Tambien puedes definir jobs estaticos en `config.json`:
 
 ---
 
-## Service Linux
+## Linux Service
 
 ```bash
-# Instalar servicio systemd
+# Install systemd service
 sudo npm run service:install
 
-# Ver logs
+# View logs
 sudo journalctl -u rippleclaw -f
 
-# Reiniciar
+# Restart
 sudo systemctl restart rippleclaw
 
-# Estado
+# Status
 systemctl status rippleclaw
 
-# Desinstalar
+# Uninstall
 sudo npm run service:uninstall
 ```
 
-Comandos del wrapper:
+Wrapper commands:
 
 ```bash
-rippleclaw cli      # Modo interactivo
-rippleclaw logs    # Ver logs
-rippleclaw status  # Estado del servicio
-rippleclaw restart # Reiniciar
+rippleclaw cli      # Interactive mode
+rippleclaw logs     # View logs
+rippleclaw status   # Service status
+rippleclaw restart  # Restart
 ```
 
 ---
 
-## Desarrollo
+## Development
 
 ```bash
-# Dev mode con hot-reload
+# Dev mode with hot-reload
 npm run dev
 
 # TypeScript check
@@ -487,39 +493,28 @@ npm run lint
 npm run build
 ```
 
-### Estructura del proyecto
+### Project structure
 
 ```
 src/
-├── core/           # Agente, memoria, scheduler, config
-├── providers/      # Adaptadores LLM
-├── channels/      # CLI, Telegram, Discord
-├── tools/         # shell, file, remember, model, env
-└── daemon.ts      # Entry point
+├── core/           # Agent, memory, scheduler, config
+├── providers/      # LLM adapters
+├── channels/       # CLI, Telegram, Discord
+├── tools/          # shell, file, remember, model, env
+└── daemon.ts       # Entry point
 ```
 
 ---
 
-## Seguridad
+## Security
 
-- **Workspace sandbox** - Archivos/shell limitados al workspace
-- **Allowed commands** - Lista blanca de comandos permitidos
-- **Secrets** - No commitear `config.json` con API keys
-- **Email** - El logger redirige `email:send` sin mostrar credenciales (password/token enmascarados) y las dependencias `nodemailer`/`undici` están incluidas para SMTP y APIs HTTP.
-
-### `.gitignore` recomendado
-
-```
-config.json
-.rippleclaw/
-node_modules/
-dist/
-bin/
-*.log
-```
+- **Workspace sandbox** - Files/shell limited to workspace.
+- **Allowed commands** - Whitelist of permitted commands.
+- **Secrets** - Do not commit `config.json` with API keys.
+- **Email** - The logger redirects `email:send` without showing credentials (masked password/token) and `nodemailer`/`undici` dependencies are included for SMTP and HTTP APIs.
 
 ---
 
-## 📄 Licencia
+## 📄 License
 
 MIT

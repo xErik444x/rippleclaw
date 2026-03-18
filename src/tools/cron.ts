@@ -44,7 +44,7 @@ export function createCronTool(memory: MemoryStore) {
       switch (args.action) {
         case "list": {
           const jobs = memory.listCronJobs();
-          if (!jobs.length) return "No hay cron jobs.";
+          if (!jobs.length) return "No cron jobs found.";
           const lines = jobs.map((j) => `${j.id}: ${j.schedule}`);
           return `Cron jobs (${jobs.length}):\n${lines.join("\n")}`;
         }
@@ -69,7 +69,7 @@ export function createCronTool(memory: MemoryStore) {
 
           const looksLikeResult = toolResultPatterns.some((p) => p.test(args.prompt || ""));
           if (looksLikeResult) {
-            return `El prompt parece ser un resultado, no una tarea. Para crear un cron que ejecute una tarea (como buscar clima), simplemente describe la tarea. Ejemplo: "Busca el clima en Córdoba" o "Dime la hora en 1 hora".`;
+            return `The prompt looks like a result, not a task. To create a cron that executes a task (like checking weather), simply describe the task. Example: "Search weather in London" or "Tell me the time in 1 hour".`;
           }
 
           // Auto-generate ID if not provided
@@ -84,7 +84,7 @@ export function createCronTool(memory: MemoryStore) {
 
           memory.saveCronJob(job);
           if (onCronChanged) onCronChanged(job.id);
-          return `Cron job "${job.id}" created. Se ejecutara en ${job.schedule}.`;
+          return `Cron job "${job.id}" created. Will run at ${job.schedule}.`;
         }
 
         case "delete": {
@@ -109,7 +109,7 @@ export function createCronTool(memory: MemoryStore) {
           if (!args.id) return 'Error: "id" is required for run';
           const job = memory.getCronJob(args.id);
           if (!job) return `Cron job "${args.id}" not found.`;
-          return `Para ejecutar el job "${args.id}": ${job.prompt}`;
+          return `To execute job "${args.id}": ${job.prompt}`;
         }
 
         default:

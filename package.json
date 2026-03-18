@@ -1,7 +1,24 @@
 {
   "name": "rippleclaw",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Fast, autonomous AI agent infrastructure for low-power devices",
+  "author": "xErik444x",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xErik444x/rippleclaw.git"
+  },
+  "keywords": [
+    "agent",
+    "ai",
+    "llm",
+    "telegram",
+    "discord",
+    "bot",
+    "raspberry-pi",
+    "orange-pi",
+    "automation"
+  ],
   "main": "dist/daemon.js",
   "bin": "dist/daemon.js",
   "scripts": {
@@ -59,5 +76,5 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "packageManager": "npm@10"
+  "packageManager": "npm@10.0.0"
 }

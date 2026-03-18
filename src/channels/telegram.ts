@@ -24,7 +24,7 @@ function renderConfigMenu(config: Config, path: string = ""): { text: string; re
   }
 
   const keyboard: TelegramBot.InlineKeyboardButton[][] = [];
-  let text = `⚙️ *Configuración: ${path || "Raíz"}*\n\n`;
+  let text = `⚙️ *Configuration: ${path || "Root"}*\n\n`;
 
   if (typeof current === "object" && current !== null && !Array.isArray(current)) {
     const obj = current as Record<string, unknown>;
@@ -64,7 +64,7 @@ function renderConfigMenu(config: Config, path: string = ""): { text: string; re
       }
     }
   } else if (Array.isArray(current)) {
-    text += "_(Lista de elementos)_\n";
+    text += "_(Item list)_\n";
     current.forEach((item: Record<string, unknown>, index: number) => {
       const fullPath = `${path}[${index}]`;
       const name = (item.name as string) || (item.id as string) || `Item ${index}`;
@@ -78,7 +78,7 @@ function renderConfigMenu(config: Config, path: string = ""): { text: string; re
   // Back button
   if (path) {
     const parentPath = parts.slice(0, -1).join(".");
-    keyboard.push([{ text: "⬅️ Volver", callback_data: `config:${parentPath}` }]);
+    keyboard.push([{ text: "⬅️ Back", callback_data: `config:${parentPath}` }]);
   }
 
   return {
@@ -109,11 +109,11 @@ export async function startTelegram(agent: Agent, config: Config) {
 
   // Register bot commands with autocomplete
   await bot.setMyCommands([
-    { command: "start", description: "Iniciar el bot" },
-    { command: "help", description: "Mostrar ayuda" },
-    { command: "newsession", description: "Reiniciar sesión/olvidar contexto" },
-    { command: "status", description: "Ver estado actual" },
-    { command: "compress", description: "Comprimir contexto" }
+    { command: "start", description: "Start the bot" },
+    { command: "help", description: "Show help" },
+    { command: "newsession", description: "Restart session/forget context" },
+    { command: "status", description: "View current status" },
+    { command: "compress", description: "Compress context" }
   ]);
 
   const allowAll = tgConfig.allowed_users.includes("*");
@@ -151,12 +151,12 @@ export async function startTelegram(agent: Agent, config: Config) {
         updateConfig(config, path, text);
         const parentPath = path.split(".").slice(0, -1).join(".");
         const menu = renderConfigMenu(config, parentPath);
-        await bot.sendMessage(msg.chat.id, `✅ Actualizado: *${path}* a \`${text}\`\n\n${menu.text}`, {
+        await bot.sendMessage(msg.chat.id, `✅ Updated: *${path}* to \`${text}\`\n\n${menu.text}`, {
           parse_mode: "Markdown",
           reply_markup: menu.reply_markup
         });
       } catch (err) {
-        await bot.sendMessage(msg.chat.id, `❌ Error al actualizar: ${err}`);
+        await bot.sendMessage(msg.chat.id, `❌ Error updating: ${err}`);
       }
       return;
     }
@@ -166,7 +166,7 @@ export async function startTelegram(agent: Agent, config: Config) {
     try {
       // Send "typing..." indicator and a temporary thinking message
       await bot.sendChatAction(msg.chat.id, "typing");
-      const thinkingMsg = await bot.sendMessage(msg.chat.id, "🤔 Pensando...");
+      const thinkingMsg = await bot.sendMessage(msg.chat.id, "🤔 Thinking...");
 
       try {
         const response = await agent.run(text, {
@@ -180,7 +180,7 @@ export async function startTelegram(agent: Agent, config: Config) {
         
         const options: SendMessageOptions = { parse_mode: "Markdown" };
         if (response.metadata?.telegram?.reply_markup) {
-          options.reply_markup = response.metadata.telegram.reply_markup;
+          options.reply_markup = response.metadata.telegram.reply_markup as any;
         }
 
         await bot.sendMessage(msg.chat.id, response.content, options);
@@ -234,7 +234,7 @@ export async function startTelegram(agent: Agent, config: Config) {
           // Initiate manual edit
           pendingEdits.set(query.message.chat.id, path);
           await bot.answerCallbackQuery(query.id);
-          await bot.sendMessage(query.message.chat.id, `⌨️ Envía el nuevo valor para *${path}*:`, { parse_mode: "Markdown" });
+          await bot.sendMessage(query.message.chat.id, `⌨️ Send the new value for *${path}*:`, { parse_mode: "Markdown" });
           return;
         } else {
           // Just navigate to path
@@ -267,7 +267,7 @@ export async function startTelegram(agent: Agent, config: Config) {
       } else if (query.data === "status") {
         text = "/status";
       } else {
-        await bot.answerCallbackQuery(query.id, { text: "Acción no reconocida" });
+        await bot.answerCallbackQuery(query.id, { text: "Action not recognized" });
         return;
       }
 
@@ -283,13 +283,13 @@ export async function startTelegram(agent: Agent, config: Config) {
 
       const options: SendMessageOptions = { parse_mode: "Markdown" };
       if (response.metadata?.telegram?.reply_markup) {
-        options.reply_markup = response.metadata.telegram.reply_markup;
+        options.reply_markup = response.metadata.telegram.reply_markup as any;
       }
 
       await bot.sendMessage(query.message.chat.id, response.content, options);
     } catch (err) {
       console.error("[Telegram] Callback error:", err);
-      await bot.sendMessage(query.message.chat.id, `❌ Error en acción: ${err}`);
+      await bot.sendMessage(query.message.chat.id, `❌ Action error: ${err}`);
     }
   });
 

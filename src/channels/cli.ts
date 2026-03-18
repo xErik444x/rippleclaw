@@ -55,9 +55,9 @@ export async function startCLI(agent: Agent, config: Config) {
         try {
           const { execSync } = await import("child_process");
           execSync("systemctl restart rippleclaw", { stdio: "inherit" });
-          console.log("\n✅ Servicio reiniciado.");
+          console.log("\n✅ Service restarted.");
         } catch (err) {
-          console.error(`\n❌ No pude reiniciar el servicio: ${err}`);
+          console.error(`\n❌ Could not restart service: ${err}`);
         }
         rl.prompt();
         return;

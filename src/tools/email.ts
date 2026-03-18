@@ -24,21 +24,21 @@ export function createEmailTool(emailSender: EmailSender) {
   return {
     definition: {
       name: "emailSender",
-      description: "Envía correos usando el transporte configurado",
+      description: "Send emails using the configured transport",
       parameters: {
         type: "object",
         properties: {
           to: {
-            description: "Dirección o direcciones destino",
+            description: "Destination address(es)",
             oneOf: [{ type: "string" }, { type: "array", items: { type: "string" }, minItems: 1 }]
           },
-          subject: { type: "string", description: "Asunto del correo" },
-          body: { type: "string", description: "Contenido del correo" },
-          body_type: { type: "string", enum: ["plain", "html"], description: "plain o html" },
+          subject: { type: "string", description: "Email subject" },
+          body: { type: "string", description: "Email content" },
+          body_type: { type: "string", enum: ["plain", "html"], description: "Format: plain or html" },
           provider: {
             type: "string",
             enum: ["smtp", "api"],
-            description: "Proveedor override (smtp|api)"
+            description: "Provider override (smtp or api)"
           },
           attachments: {
             type: "array",

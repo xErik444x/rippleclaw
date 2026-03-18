@@ -316,7 +316,7 @@ async function runEmailCommand(rawArgs: string[]) {
   });
 
   if (result.success) {
-    console.log(dryRun ? "Email preparado en seco" : "Email enviado");
+    console.log(dryRun ? "Email dry-run successful" : "Email sent");
     process.exit(0);
   }
 
