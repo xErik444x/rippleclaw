@@ -532,6 +532,7 @@ Rules:
           .filter((t) => t.definition.name === "model" || t.definition.name === "env")
           .map((t) => t.definition);
 
+    let taskListAcknowledged = false;
     for (let i = 0; i < maxLoopIterations; i++) {
       const toolDefs = wantsEnv ? baseDefs : baseDefs.filter((d) => d.name !== "env");
       const toSend = trimLoopMessages(loopMessages);
@@ -551,6 +552,16 @@ Rules:
       const toolCalls = parseToolCalls(response.content);
 
       if (!toolCalls || toolCalls.length === 0) {
+        const hasTaskList = response.content.includes("TASK_LIST") && response.content.includes("END_TASK_LIST");
+        if (hasTaskList && !taskListAcknowledged) {
+          taskListAcknowledged = true;
+          loopMessages.push(
+            { role: "assistant", content: response.content },
+            { role: "user", content: "Task list acknowledged. Please use a tool to begin the first step. Do not talk to the user yet." }
+          );
+          continue;
+        }
+
         // Final text response (empty array from parseToolCalls counts as "no tools")
         finalResponse = response.content?.trim() || lastResponseContent;
         break;
