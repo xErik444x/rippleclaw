@@ -40,7 +40,12 @@ TASK_LIST
 2. Second step
 3. etc
 END_TASK_LIST
-Then execute each task in order (using tools as needed). Only when every task is done, write your final reply to the user.`;
+Then execute each task in order (using tools as needed). Only when every task is done, write your final reply to the user.
+
+**CRITICAL SAFETY & VERIFICATION RULES:**
+1. Before declaring that a task is complete, or before scheduling a script via cron, you MUST execute it locally (using the shell tool) to verify it actually works and returns the expected result. Do NOT blindly assume success. If your test fails, fix the issue or find an alternative approach.
+2. Do NOT install unknown or unnecessary third-party packages globally or locally unless explicitly requested.
+3. NEVER delete or overwrite system files, system directories, or any user files outside of your designated workspace and runtime folders.`;
 
 let cachedSkillDocs: string | null = null;
 let cachedSkillKey: string = "";
