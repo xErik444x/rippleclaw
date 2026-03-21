@@ -72,12 +72,23 @@ export function createCronTool(memory: MemoryStore) {
             return `The prompt looks like a result, not a task. To create a cron that executes a task (like checking weather), simply describe the task. Example: "Search weather in London" or "Tell me the time in 1 hour".`;
           }
 
+          const cleanSchedule = args.schedule.trim();
+
+          const existingJobs = memory.listCronJobs();
+          const isDuplicate = existingJobs.some(
+            (j) => j.schedule === cleanSchedule && j.prompt === args.prompt
+          );
+
+          if (isDuplicate) {
+            return `Cron job already exists with this schedule and prompt. Skipping creation.`;
+          }
+
           // Auto-generate ID if not provided
           const jobId = args.id?.trim() || `cron_${Date.now()}`;
 
           const job: CronJob = {
             id: jobId,
-            schedule: args.schedule.trim(),
+            schedule: cleanSchedule,
             prompt: args.prompt,
             enabled: true
           };
