@@ -281,19 +281,6 @@ export class Agent {
         lower
       );
 
-    const sanitizeCapturedName = (value: string) => {
-      return value
-        .split(/[,;:]/)[0]
-        .replace(
-          /\b(?:guardad[oa]|guardalo|guardala|recordad[oa]|recordalo|recordala|recuerda|recorda)\b.*$/i,
-          ""
-        )
-        .trim()
-        .replace(/[.!?]+$/, "");
-    };
-
-    const asksUserName = /como me llamo|mi nombre|cómo me llamo/.test(lower);
-    const asksAgentName = /como te llamas|cómo te llamas|tu nombre/.test(lower);
     const isStatusCommand = /^\/?status\b/i.test(input.trim());
     const isCompressCommand = /^\/?compress\b/i.test(input.trim());
     const wantsCompress =
@@ -304,51 +291,6 @@ export class Agent {
       /(sistema operativo|os\b|windows|linux|mac|cwd|workspace|carpeta|directorio|config|configuraci[oó]n|ajustes|settings|variable|env\b)/i.test(
         input
       );
-    const nameChangeMatch =
-      input.match(/(?:cambia(?:me)?|cambiame|quiero que cambies?)\s+mi\s+nombre\s+a\s+(.+)/i) ||
-      input.match(/(?:quiero|quisiera)\s+que\s+me\s+llames?\s+(.+)/i) ||
-      input.match(/(?:mi\s+nombre\s+es|soy)\s+(.+)/i);
-    const nickChangeMatch =
-      input.match(/(?:cambia(?:me)?|cambiame|quiero que te llames?)\s+(.+)/i) ||
-      input.match(/(?:quiero|quisiera)\s+que\s+te\s+llames?\s+(.+)/i) ||
-      input.match(/(?:tu\s+nombre\s+es|te\s+llamas)\s+(.+)/i) ||
-      input.match(/quiero que cambies tu nombre a\s+(.+)/i);
-    if (nameChangeMatch && nameChangeMatch[1]) {
-      const newName = sanitizeCapturedName(nameChangeMatch[1]);
-      if (newName) {
-        this.memory.saveNote("name", newName);
-        const response = `Guardé esto en memoria, será útil a futuro. (key: "name")\nTu nombre es ${newName}.`;
-        session.addMessage("assistant", response);
-        return { content: response };
-      }
-    }
-    if (nickChangeMatch && nickChangeMatch[1]) {
-      const newNick = sanitizeCapturedName(nickChangeMatch[1]);
-      if (newNick) {
-        this.memory.saveNote("nickname", newNick);
-        const response = `Listo. Me llamo ${newNick}.`;
-        session.addMessage("assistant", response);
-        return { content: response };
-      }
-    }
-
-    if (asksUserName) {
-      const fromNotes =
-        this.memory.getNote("name") ||
-        this.memory.getNote("user_name") ||
-        this.memory.getNote("username");
-      const userName = fromNotes || ctx.userName || ctx.userId;
-      const response = userName ? `Tu nombre es ${userName}.` : "No tengo tu nombre guardado.";
-      session.addMessage("assistant", response);
-      return { content: response };
-    }
-
-    if (asksAgentName) {
-      const nick = this.memory.getNote("nickname");
-      const response = nick ? `Me llamo ${nick}.` : "Me llamo RippleClaw.";
-      session.addMessage("assistant", response);
-      return { content: response };
-    }
 
     if (asksAboutSession) {
       const sessionCount = session.getMessageCount();
@@ -375,10 +317,15 @@ export class Agent {
     const threshold = Math.floor(contextCfg.max_tokens * (contextCfg.compress_threshold || 0.85));
     let summary = session.getSummary();
 
+    const resolvedUserName = this.memory.getNote("name") || this.memory.getNote("user_name") || this.memory.getNote("username") || ctx.userName || ctx.userId;
+    const resolvedAgentName = this.memory.getNote("nickname") || "RippleClaw";
+
     const runtimeInfo = `Runtime:
 os=${process.platform === "win32" ? "Windows" : process.platform === "darwin" ? "macOS" : "Linux"}
 cwd=${process.cwd()}
 workspace=${this.config.workspace}
+Agent Name: ${resolvedAgentName}
+User Name: ${resolvedUserName}
 Rules:
 - Use env tool with action="get" to read full config or runtime info.
 - Use env tool with action="set" to change config or environment variables.
