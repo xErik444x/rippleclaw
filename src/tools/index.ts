@@ -8,3 +8,4 @@ export { createWebTool } from "./web";
 export { createWeatherTool } from "./weather";
 export { createSummarizeTool } from "./summarize";
 export { createEmailTool } from "./email";
+export { createVersionTool } from "./version";

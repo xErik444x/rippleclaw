@@ -1,6 +1,6 @@
 {
   "name": "rippleclaw",
-  "version": "0.1.7c",
+  "version": "1.8",
   "description": "Fast, autonomous AI agent infrastructure for low-power devices",
   "author": "xErik444x",
   "license": "MIT",
@@ -71,7 +71,9 @@
   "pkg": {
     "scripts": "dist/**/*.js",
     "assets": "src/skills/**/*.md",
-    "external": ["node:sqlite"]
+    "external": [
+      "node:sqlite"
+    ]
   },
   "engines": {
     "node": ">=18.0.0"

@@ -15,7 +15,8 @@ import {
   createEnvTool,
   createWebTool,
   createWeatherTool,
-  createSummarizeTool
+  createSummarizeTool,
+  createVersionTool
 } from "../tools/index";
 import { createEmailTool } from "../tools/email";
 import type { EmailSender } from "./email";
@@ -118,9 +119,7 @@ function loadProjectSkills(config: Config): string {
     return "";
   }
 
-  const indexLines = items.map(
-    (it) => `- ${it.name}: ${it.summary} (file: ${it.path})`
-  );
+  const indexLines = items.map((it) => `- ${it.name}: ${it.summary} (file: ${it.path})`);
 
   cachedSkillDocs =
     "\n\n# Project Skills Index\n\n" +
@@ -173,6 +172,7 @@ export class Agent {
     const weatherTool = createWeatherTool(config);
     const summarizeTool = createSummarizeTool(config);
     const emailTool = createEmailTool(emailSender);
+    const versionTool = createVersionTool(memory, config);
 
     this.tools = [
       {
@@ -253,6 +253,10 @@ export class Agent {
       {
         definition: emailTool.definition,
         execute: (args) => emailTool.execute(args as Record<string, unknown>)
+      },
+      {
+        definition: versionTool.definition,
+        execute: (args) => versionTool.execute(args as { action: "check" | "info" })
       }
     ];
   }
@@ -322,7 +326,12 @@ export class Agent {
     const threshold = Math.floor(contextCfg.max_tokens * (contextCfg.compress_threshold || 0.85));
     let summary = session.getSummary();
 
-    const resolvedUserName = this.memory.getNote("name") || this.memory.getNote("user_name") || this.memory.getNote("username") || ctx.userName || ctx.userId;
+    const resolvedUserName =
+      this.memory.getNote("name") ||
+      this.memory.getNote("user_name") ||
+      this.memory.getNote("username") ||
+      ctx.userName ||
+      ctx.userId;
     const resolvedAgentName = this.memory.getNote("nickname") || "RippleClaw";
 
     const runtimeInfo = `Runtime:
@@ -346,7 +355,8 @@ Rules:
     const buildMessages = (history: Message[], includeInput: boolean) => {
       const summaryBlock = summary ? `Resumen previo:\n${summary}\n` : "";
       const skillsBlock = loadProjectSkills(this.config);
-      const systemContent = `${SYSTEM_PROMPT}\n\n${runtimeInfo}${skillsBlock ? `\n\n${skillsBlock}` : ""}\n\n${summaryBlock}`.trim();
+      const systemContent =
+        `${SYSTEM_PROMPT}\n\n${runtimeInfo}${skillsBlock ? `\n\n${skillsBlock}` : ""}\n\n${summaryBlock}`.trim();
       const base: Message[] = [{ role: "system", content: systemContent }, ...history];
       if (includeInput) base.push({ role: "user", content: input });
       return base;
@@ -504,12 +514,17 @@ Rules:
       const toolCalls = parseToolCalls(response.content);
 
       if (!toolCalls || toolCalls.length === 0) {
-        const hasTaskList = response.content.includes("TASK_LIST") && response.content.includes("END_TASK_LIST");
+        const hasTaskList =
+          response.content.includes("TASK_LIST") && response.content.includes("END_TASK_LIST");
         if (hasTaskList && !taskListAcknowledged) {
           taskListAcknowledged = true;
           loopMessages.push(
             { role: "assistant", content: response.content },
-            { role: "user", content: "Task list acknowledged. Please use a tool to begin the first step. Do not talk to the user yet." }
+            {
+              role: "user",
+              content:
+                "Task list acknowledged. Please use a tool to begin the first step. Do not talk to the user yet."
+            }
           );
           continue;
         }

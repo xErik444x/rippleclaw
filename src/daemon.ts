@@ -132,6 +132,17 @@ async function main() {
   const emailSender = new EmailSender(config);
   const agent = new Agent(config, memory, emailSender);
 
+  // Run automatic version check on startup
+  try {
+    console.log("🔍 Checking for updates...");
+    const { createVersionTool } = await import("./tools/version");
+    const versionTool = createVersionTool(memory, config);
+    const versionResult = await versionTool.execute({ action: "info" });
+    console.log(versionResult);
+  } catch (error) {
+    console.warn("[Version] Startup check failed:", error);
+  }
+
   // Decide startup mode
   let channelFilter = flags.channel;
   if (!channelFilter && flags.menu && process.stdin.isTTY) {

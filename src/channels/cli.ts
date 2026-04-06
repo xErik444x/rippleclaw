@@ -40,7 +40,19 @@ export async function startCLI(agent: Agent, config: Config) {
     }
 
     if (input === "/help") {
-      console.log("Commands: /clear, /exit, /quit, /setup, /restart");
+      console.log("Commands: /clear, /exit, /quit, /setup, /restart, /version");
+      rl.prompt();
+      return;
+    }
+
+    if (input === "/version") {
+      console.log("🌊 RippleClaw: Checking version...");
+      try {
+        const versionResult = await agent.run("version check", ctx);
+        console.log(`🌊 RippleClaw: ${versionResult.content}`);
+      } catch (error) {
+        console.error(`❌ Error checking version: ${error}`);
+      }
       rl.prompt();
       return;
     }

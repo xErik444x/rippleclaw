@@ -28,7 +28,10 @@ async function sendSafeMessage(
   }
 }
 
-function renderConfigMenu(config: Config, path: string = ""): { text: string; reply_markup: InlineKeyboardMarkup } {
+function renderConfigMenu(
+  config: Config,
+  path: string = ""
+): { text: string; reply_markup: InlineKeyboardMarkup } {
   const parts = path ? path.split(".") : [];
   let current: unknown = config;
   for (const p of parts) {
@@ -47,8 +50,10 @@ function renderConfigMenu(config: Config, path: string = ""): { text: string; re
 
   if (typeof current === "object" && current !== null && !Array.isArray(current)) {
     const obj = current as Record<string, unknown>;
-    const keys = Object.keys(obj).filter((k) => !k.startsWith("_") && k !== "api_key" && k !== "token" && k !== "password");
-    
+    const keys = Object.keys(obj).filter(
+      (k) => !k.startsWith("_") && k !== "api_key" && k !== "token" && k !== "password"
+    );
+
     // Sort keys: primitives first, then objects
     const sortedKeys = keys.sort((a, b) => {
       const typeA = typeof obj[a];
@@ -64,22 +69,29 @@ function renderConfigMenu(config: Config, path: string = ""): { text: string; re
       const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
 
       if (typeof val === "boolean") {
-        keyboard.push([{
-          text: `${val ? "✅" : "❌"} ${label}`,
-          callback_data: `config:${fullPath}:toggle`
-        }]);
+        keyboard.push([
+          {
+            text: `${val ? "✅" : "❌"} ${label}`,
+            callback_data: `config:${fullPath}:toggle`
+          }
+        ]);
       } else if (typeof val === "string" || typeof val === "number") {
         // Truncate long strings
-        const displayVal = typeof val === "string" && val.length > 20 ? val.slice(0, 17) + "..." : val;
-        keyboard.push([{
-          text: `${label}: ${displayVal}`,
-          callback_data: `config:${fullPath}:edit`
-        }]);
+        const displayVal =
+          typeof val === "string" && val.length > 20 ? val.slice(0, 17) + "..." : val;
+        keyboard.push([
+          {
+            text: `${label}: ${displayVal}`,
+            callback_data: `config:${fullPath}:edit`
+          }
+        ]);
       } else if (typeof val === "object" && val !== null) {
-        keyboard.push([{
-          text: `📂 ${label}`,
-          callback_data: `config:${fullPath}`
-        }]);
+        keyboard.push([
+          {
+            text: `📂 ${label}`,
+            callback_data: `config:${fullPath}`
+          }
+        ]);
       }
     }
   } else if (Array.isArray(current)) {
@@ -87,10 +99,12 @@ function renderConfigMenu(config: Config, path: string = ""): { text: string; re
     current.forEach((item: Record<string, unknown>, index: number) => {
       const fullPath = `${path}[${index}]`;
       const name = (item.name as string) || (item.id as string) || `Item ${index}`;
-      keyboard.push([{
-        text: `🔹 ${name}`,
-        callback_data: `config:${fullPath}`
-      }]);
+      keyboard.push([
+        {
+          text: `🔹 ${name}`,
+          callback_data: `config:${fullPath}`
+        }
+      ]);
     });
   }
 
@@ -132,7 +146,8 @@ export async function startTelegram(agent: Agent, config: Config) {
     { command: "help", description: "Show help" },
     { command: "newsession", description: "Restart session/forget context" },
     { command: "status", description: "View current status" },
-    { command: "compress", description: "Compress context" }
+    { command: "compress", description: "Compress context" },
+    { command: "version", description: "Check version information" }
   ]);
 
   const allowAll = tgConfig.allowed_users.includes("*");
@@ -145,6 +160,49 @@ export async function startTelegram(agent: Agent, config: Config) {
 
     const text = msg.text;
     if (!text) return;
+
+    // Handle /version command directly
+    if (text.toLowerCase().startsWith("/version")) {
+      const userId = String(msg.from?.id || "unknown");
+      const userName = msg.from?.username || msg.from?.first_name || userId;
+
+      // Check if user is allowed
+      if (
+        !allowAll &&
+        !tgConfig.allowed_users.includes(userId) &&
+        !tgConfig.allowed_users.includes(userName)
+      ) {
+        await bot.sendMessage(
+          msg.chat.id,
+          `⛔ Unauthorized. Ask the operator to run:\nrippleclaw channel allow-telegram ${userId}`
+        );
+        return;
+      }
+
+      console.log(`[Telegram] 📨 ${userName}: ${text}`);
+
+      try {
+        await bot.sendChatAction(msg.chat.id, "typing");
+        const thinkingMsg = await bot.sendMessage(msg.chat.id, "🤔 Checking version...");
+
+        // Use the version tool directly
+        const versionResult = await agent.run("version check", {
+          channel: "telegram",
+          userId,
+          userName
+        });
+
+        await bot.editMessageText(versionResult.content, {
+          chat_id: msg.chat.id,
+          message_id: thinkingMsg.message_id,
+          parse_mode: "Markdown"
+        });
+      } catch (error) {
+        console.error("[Telegram] Error handling /version:", error);
+        await bot.sendMessage(msg.chat.id, "❌ Error checking version. Please try again.");
+      }
+      return;
+    }
 
     const userId = String(msg.from?.id || "unknown");
     const userName = msg.from?.username || msg.from?.first_name || userId;
@@ -196,7 +254,7 @@ export async function startTelegram(agent: Agent, config: Config) {
 
         // Remove thinking message before sending response
         await bot.deleteMessage(msg.chat.id, thinkingMsg.message_id);
-        
+
         const options: SendMessageOptions = { parse_mode: "Markdown" };
         if (response.metadata?.telegram?.reply_markup) {
           options.reply_markup = response.metadata.telegram.reply_markup as any;
@@ -234,13 +292,14 @@ export async function startTelegram(agent: Agent, config: Config) {
           // Toggle boolean value
           const keys = path.split(".");
           let current: unknown = config;
-          for (let i = 0; i < keys.length - 1; i++) current = (current as Record<string, unknown>)[keys[i]];
+          for (let i = 0; i < keys.length - 1; i++)
+            current = (current as Record<string, unknown>)[keys[i]];
           const lastKey = keys[keys.length - 1];
           const currentObj = current as Record<string, unknown>;
           const newVal = !currentObj[lastKey];
           updateConfig(config, path, newVal);
           await bot.answerCallbackQuery(query.id, { text: `✅ ${path} = ${newVal}` });
-          
+
           const menu = renderConfigMenu(config, path.split(".").slice(0, -1).join("."));
           await bot.editMessageText(menu.text, {
             chat_id: query.message.chat.id,
@@ -253,7 +312,9 @@ export async function startTelegram(agent: Agent, config: Config) {
           // Initiate manual edit
           pendingEdits.set(query.message.chat.id, path);
           await bot.answerCallbackQuery(query.id);
-          await bot.sendMessage(query.message.chat.id, `⌨️ Send the new value for *${path}*:`, { parse_mode: "Markdown" });
+          await bot.sendMessage(query.message.chat.id, `⌨️ Send the new value for *${path}*:`, {
+            parse_mode: "Markdown"
+          });
           return;
         } else {
           // Just navigate to path
@@ -291,7 +352,7 @@ export async function startTelegram(agent: Agent, config: Config) {
       }
 
       await bot.answerCallbackQuery(query.id);
-      
+
       // Simulate a user message for the agent
       await bot.sendChatAction(query.message.chat.id, "typing");
       const response = await agent.run(text, {

@@ -18,14 +18,16 @@ export async function startDiscord(agent: Agent, config: Config) {
 
   type IntentsResolvable = import("discord.js").ClientOptions["intents"];
 
-  const intents = (discord.GatewayIntentBits
-    ? [
-        discord.GatewayIntentBits.Guilds,
-        discord.GatewayIntentBits.GuildMessages,
-        discord.GatewayIntentBits.MessageContent,
-        discord.GatewayIntentBits.DirectMessages
-      ]
-    : (["GUILDS", "GUILD_MESSAGES", "DIRECT_MESSAGES"] as unknown)) as IntentsResolvable;
+  const intents = (
+    discord.GatewayIntentBits
+      ? [
+          discord.GatewayIntentBits.Guilds,
+          discord.GatewayIntentBits.GuildMessages,
+          discord.GatewayIntentBits.MessageContent,
+          discord.GatewayIntentBits.DirectMessages
+        ]
+      : (["GUILDS", "GUILD_MESSAGES", "DIRECT_MESSAGES"] as unknown)
+  ) as IntentsResolvable;
 
   const client = new Client({ intents });
 
@@ -41,7 +43,8 @@ export async function startDiscord(agent: Agent, config: Config) {
 
     const botMentioned = message.mentions.has(client.user!.id);
     const dmCheck = message.channel as unknown as { isDMBased?: () => boolean; type?: string };
-    const isDM = typeof dmCheck.isDMBased === "function" ? dmCheck.isDMBased() : dmCheck.type === "DM";
+    const isDM =
+      typeof dmCheck.isDMBased === "function" ? dmCheck.isDMBased() : dmCheck.type === "DM";
 
     if (!botMentioned && !isDM) return;
 
@@ -61,6 +64,45 @@ export async function startDiscord(agent: Agent, config: Config) {
     // Strip bot mention from message
     const text = message.content.replace(/<@!?\d+>/g, "").trim();
     if (!text) return;
+
+    // Handle /version command directly
+    if (text.toLowerCase().startsWith("/version")) {
+      console.log(`[Discord] 📨 ${userName}: ${text}`);
+
+      try {
+        const typingChannel = message.channel as unknown as { sendTyping?: () => Promise<void> };
+        if (typeof typingChannel.sendTyping === "function") {
+          await typingChannel.sendTyping();
+        }
+
+        const thinkingMsg = await message.reply("🤔 Checking version...");
+
+        // Use the version tool directly
+        const versionResult = await agent.run("version check", {
+          channel: "discord",
+          userId,
+          userName
+        });
+
+        try {
+          await thinkingMsg.delete();
+        } catch {}
+
+        // Discord has 2000 char limit
+        if (versionResult.content.length > 1900) {
+          const chunks = versionResult.content.match(/.{1,1900}/gs) || [];
+          for (const chunk of chunks) {
+            await message.reply(chunk);
+          }
+        } else {
+          await message.reply(versionResult.content || "❌ Error checking version.");
+        }
+      } catch (error) {
+        console.error("[Discord] Error handling /version:", error);
+        await message.reply("❌ Error checking version. Please try again.");
+      }
+      return;
+    }
 
     console.log(`[Discord] 📨 ${userName}: ${text}`);
 
