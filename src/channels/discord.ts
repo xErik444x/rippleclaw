@@ -1,8 +1,10 @@
 import type { Agent } from "../core/agent";
 import type { Config } from "../core/config";
+import type { MemoryStore } from "../core/memory";
 import type { Client as DiscordClient, Message as DiscordMessage } from "discord.js";
+import { createVersionTool } from "../tools/version";
 
-export async function startDiscord(agent: Agent, config: Config) {
+export async function startDiscord(agent: Agent, config: Config, memory?: MemoryStore) {
   const dsConfig = config.channels.discord;
   if (!dsConfig.enabled || !dsConfig.token) {
     console.log("[Discord] Disabled or no token configured");
@@ -77,25 +79,32 @@ export async function startDiscord(agent: Agent, config: Config) {
 
         const thinkingMsg = await message.reply("🤔 Checking version...");
 
-        // Use the version tool directly
-        const versionResult = await agent.run("version check", {
-          channel: "discord",
-          userId,
-          userName
-        });
+        // Use version tool directly
+        let versionContent = "";
+        if (memory) {
+          const versionTool = createVersionTool(memory, config);
+          versionContent = await versionTool.execute({ action: "check" });
+        } else {
+          const versionResult = await agent.run("version check", {
+            channel: "discord",
+            userId,
+            userName
+          });
+          versionContent = versionResult.content;
+        }
 
         try {
           await thinkingMsg.delete();
         } catch {}
 
         // Discord has 2000 char limit
-        if (versionResult.content.length > 1900) {
-          const chunks = versionResult.content.match(/.{1,1900}/gs) || [];
+        if (versionContent.length > 1900) {
+          const chunks = versionContent.match(/.{1,1900}/gs) || [];
           for (const chunk of chunks) {
             await message.reply(chunk);
           }
         } else {
-          await message.reply(versionResult.content || "❌ Error checking version.");
+          await message.reply(versionContent || "❌ Error checking version.");
         }
       } catch (error) {
         console.error("[Discord] Error handling /version:", error);

@@ -1,8 +1,10 @@
 import type { Agent } from "../core/agent";
 import type { Config } from "../core/config";
+import type { MemoryStore } from "../core/memory";
 import { updateConfig } from "../core/config";
 import type TelegramBot from "node-telegram-bot-api";
 import type { InlineKeyboardMarkup, SendMessageOptions } from "node-telegram-bot-api";
+import { createVersionTool } from "../tools/version";
 
 let lastChatId: number | null = null;
 let telegramBotInstance: TelegramBot | null = null;
@@ -128,7 +130,7 @@ export function getTelegramBot() {
   return telegramBotInstance;
 }
 
-export async function startTelegram(agent: Agent, config: Config) {
+export async function startTelegram(agent: Agent, config: Config, memory?: MemoryStore) {
   const tgConfig = config.channels.telegram;
   if (!tgConfig.enabled || !tgConfig.token) {
     console.log("[Telegram] Disabled or no token configured");
@@ -185,14 +187,22 @@ export async function startTelegram(agent: Agent, config: Config) {
         await bot.sendChatAction(msg.chat.id, "typing");
         const thinkingMsg = await bot.sendMessage(msg.chat.id, "🤔 Checking version...");
 
-        // Use the version tool directly
-        const versionResult = await agent.run("version check", {
-          channel: "telegram",
-          userId,
-          userName
-        });
+        // Use version tool directly
+        let versionContent = "";
+        if (memory) {
+          const versionTool = createVersionTool(memory, config);
+          versionContent = await versionTool.execute({ action: "check" });
+        } else {
+          // Fallback to agent.run if no memory
+          const versionResult = await agent.run("version check", {
+            channel: "telegram",
+            userId,
+            userName
+          });
+          versionContent = versionResult.content;
+        }
 
-        await bot.editMessageText(versionResult.content, {
+        await bot.editMessageText(versionContent, {
           chat_id: msg.chat.id,
           message_id: thinkingMsg.message_id,
           parse_mode: "Markdown"

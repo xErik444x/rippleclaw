@@ -198,6 +198,7 @@ export function createVersionTool(memory: MemoryStore, config: Config) {
       switch (args.action) {
         case "check": {
           const result = await checkGitHubReleases();
+          const repoUrl = "https://github.com/xErik444x/rippleclaw";
 
           if (result.isUpdateAvailable) {
             return (
@@ -205,14 +206,16 @@ export function createVersionTool(memory: MemoryStore, config: Config) {
               `Versión actual: ${result.current}\n` +
               `Última versión: ${result.latest}\n` +
               `Publicada: ${result.publishedAt ? new Date(result.publishedAt).toLocaleDateString() : "N/A"}\n\n` +
-              `URL: ${result.htmlUrl || "https://github.com/xErik444x/rippleclaw/releases"}`
+              `🔗 **Repo:** ${repoUrl}\n` +
+              `📦 **Releases:** ${result.htmlUrl || repoUrl + "/releases"}`
             );
           } else {
             return (
               `✅ **Estás al día!**\n\n` +
               `Versión actual: ${result.current}\n` +
               `Última versión: ${result.latest}\n` +
-              `No hay nuevas actualizaciones disponibles.`
+              `No hay nuevas actualizaciones disponibles.\n\n` +
+              `🔗 **Repo:** ${repoUrl}`
             );
           }
         }
@@ -225,12 +228,15 @@ export function createVersionTool(memory: MemoryStore, config: Config) {
             ? new Date(lastCheck.lastChecked).toLocaleString()
             : "Nunca";
 
+          const repoUrl = "https://github.com/xErik444x/rippleclaw";
+
           return (
             `📋 **Información de Versión**\n\n` +
             `Versión actual: ${result.current}\n` +
             `Última versión disponible: ${result.latest}\n` +
             `Actualización disponible: ${result.isUpdateAvailable ? "✅ Sí" : "❌ No"}\n` +
             `Última verificación: ${lastCheckedStr}\n\n` +
+            `🔗 **Repo:** ${repoUrl}\n\n` +
             `Para actualizar manualmente:\n` +
             `\`git pull && npm install && npm run build\``
           );

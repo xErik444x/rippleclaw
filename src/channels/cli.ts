@@ -1,9 +1,11 @@
 import type { Agent } from "../core/agent";
 import type { Config } from "../core/config";
+import type { MemoryStore } from "../core/memory";
 import * as readline from "readline";
 import { runSetupMenu } from "./cli-setup";
+import { createVersionTool } from "../tools/version";
 
-export async function startCLI(agent: Agent, config: Config) {
+export async function startCLI(agent: Agent, config: Config, memory?: MemoryStore) {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -48,8 +50,15 @@ export async function startCLI(agent: Agent, config: Config) {
     if (input === "/version") {
       console.log("🌊 RippleClaw: Checking version...");
       try {
-        const versionResult = await agent.run("version check", ctx);
-        console.log(`🌊 RippleClaw: ${versionResult.content}`);
+        let versionContent = "";
+        if (memory) {
+          const versionTool = createVersionTool(memory, config);
+          versionContent = await versionTool.execute({ action: "check" });
+        } else {
+          const versionResult = await agent.run("version check", ctx);
+          versionContent = versionResult.content;
+        }
+        console.log(`🌊 RippleClaw: ${versionContent}`);
       } catch (error) {
         console.error(`❌ Error checking version: ${error}`);
       }

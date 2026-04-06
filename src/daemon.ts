@@ -158,7 +158,7 @@ async function main() {
   if (channelFilter === "cli") {
     if (config.channels.cli.enabled || channelFilter === "cli") {
       await loadInteractiveDeps();
-      await startCLI!(agent, config);
+      await startCLI!(agent, config, memory);
       return; // CLI is interactive, blocks here
     }
   }
@@ -167,11 +167,11 @@ async function main() {
   const startups: Promise<void>[] = [];
 
   if (!channelFilter || channelFilter === "telegram") {
-    startups.push(startTelegram(agent, config));
+    startups.push(startTelegram(agent, config, memory));
   }
 
   if (!channelFilter || channelFilter === "discord") {
-    startups.push(startDiscord(agent, config));
+    startups.push(startDiscord(agent, config, memory));
   }
 
   startups.push(startScheduler(agent, config, memory));
