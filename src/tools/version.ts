@@ -21,7 +21,7 @@ interface VersionCheckResult {
   htmlUrl?: string;
 }
 
-const DEFAULT_VERSION = "1.8";
+const DEFAULT_VERSION = "1.8b";
 
 function getCurrentVersion(): string {
   const searchPaths = [
